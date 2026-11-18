@@ -40,13 +40,15 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0008 | `makedefs/MakeInc.def` | skips the absent Apple KDK `libSWEET` archive |
 | 0009 | `config/MASTER.arm64.MacOSX` | selects generic ARM64 `nos_arm_pmap` and `nos_arm_asm` sources for SWEET |
 | 0010 | `osfmk/arm/pmap/pmap.c`, `osfmk/arm64/start.s` | guards Apple private PPL/tunables files for SWEET |
+| 0011 | `osfmk/arm/pmap/pmap.c` | removes PPL-only calls from the non-monitor path |
 
 The latest build reached final linking but failed with 241 groups of undefined
 symbols because generic ARM64 XNU sources were not selected for SWEET. Patch
 0009 adds those selectors to `KERNEL_BASE` for SWEET. Run 44377642599 then exposed
 two Apple-only headers missing from the public XNU drop; 0010 gates those paths
-for non-Apple SWEET hardware. The next CI build must verify compilation and
-linking. See `patches/README.md` for details.
+for non-Apple SWEET hardware. Patch 0011 fixes generic pmap calls that still expected monitor-only PPL
+functions. The next CI build must verify compilation and linking. See
+`patches/README.md` for details.
 
 Details, rationale and the exact compiler errors that produced 0005/0006 are
 in [`patches/README.md`](patches/README.md).

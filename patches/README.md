@@ -172,6 +172,13 @@ Apple SART) and confines the per-SoC tunables assembly to Apple arm64 families.
 The source patch applies cleanly to the captured XNU 12377 tree. Next CI should
 show whether compiling and linking now complete or expose further gaps.
 
+Run `44385910181` passed those missing-header errors and then found five
+compile errors in `pmap.c`: references to `ptep_get_iommu` and PPL lockdown
+functions, plus `pmap_phys_write_disable` used before its static declaration.
+Patch 0011 gates the Apple PPL-only lockdown operations on `XNU_MONITOR`, uses
+the generic PTE address in diagnostics, and adds the forward declaration. This
+is the expected non-monitor path for Qualcomm SWEET hardware.
+
 
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
