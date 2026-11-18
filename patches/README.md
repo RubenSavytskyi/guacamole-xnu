@@ -27,8 +27,9 @@
 | 0005 | `pexpert/arm/pe_fiq.c` | для `SWEET` конфігурує GIC **Group 1 NS** (IGROUPR0=all-1, пріоритети, vtimer INTID 19 + SGI1, `ICC_BPR1_EL1`, `ARE_NS\|EnableGrp1A\|EnableGrp1`, `ICC_IGRPEN1_EL1`); Apple-гілка з `GICD_CTLR_ENABLEGRP0` лишається під `#else`. Прибирає `use of undeclared identifier 'GICD_CTLR_ENABLEGRP0'` і одночасно runtime-блокер: Group 0 належить TrustZone |
 | 0006 | `pexpert/pexpert/arm64/SWEET.h` + `osfmk/arm64/cpc_arm64.c` | дає `CPMU_PMC_COUNT 10` та нулі для решти CPMU-фіч (структури CPC існують, нічого не програмується) і виставляє `cpc_cpmu_supported = false` для `SWEET`. Прибирає `use of undeclared identifier 'CPMU_PMC_COUNT'`: у 12377 `CONFIG_CPU_COUNTERS` увімкнено завжди, а CPMU-константи є лише в Apple-заголовках `H1x.h` |
 | 0007 | `pexpert/pexpert/arm64/apple_arm64_cpu.h` | включає `apple_arm64_regs.h` перед `arm64_core_type()`. Без нього `MPIDR_CORETYPE_*` невидимі в `osfmk/arm/machine_routines_common.c`, `osfmk/arm64/pcb.c` і `sleh.c`: на Apple-конфігах їх приносить `apple_arm64_common.h` через `board_config.h`, а SWEET його не включає |
+| 0008 | `makedefs/MakeInc.def` | вимикає примусове лінкування `$(KDKROOT)/System/Library/KernelSupport/libSWEET.os.DEVELOPMENT.a` для `SWEET` (`ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)`). У KDK Apple є такі архіви лише для Apple SoC (T6000, T8103 тощо); для кастомних платформ (як і для `SHENG` у пріор-арті akita) вони відсутні |
 
-Порядок застосування — саме 0001 → 0007.
+Порядок застосування — саме 0001 → 0008.
 
 ### Чому саме так
 
@@ -101,6 +102,27 @@ make: *** [install] Error 2
 Workflow тепер має `set -o pipefail` і падає, якщо `kernel.development.*`
 не з'явився, — «зелений без ядра» більше неможливий.
 
+## Фактичні помилки третьої збірки (run 44278053892)
+
+Run `44278053892` (`macos-15-intel`, Xcode 26.3.0, SDK 26.2, 28m27s) у `RubenSavytskyi/guacamole-xnu`:
+завдяки `pipefail` помилка виявлена коректно (exit code 2).
+Усі 8 компонентів ядра (`osfmk`, `bsd`, `libkern`, `iokit`, `pexpert`, `libsa`, `security`, `san`)
+успішно скомпільовані без жодної C/C++ помилки (патч 0007 повністю закрив проблему з `MPIDR_CORETYPE_*`).
+Генерація `link.filelist` пройшла успішно.
+Збірка дійшла до фінального лінкування `kernel.development.sweet.unstripped.noctf`.
+
+Єдина помилка логу:
+```text
+ld: library '/Library/Developer/KDKs/KDK_26.5_25F71.kdk//System/Library/KernelSupport/libSWEET.os.DEVELOPMENT.a' not found
+clang++: error: linker command failed with exit code 1 (use -v to see invocation)
+make[3]: *** [/Users/runner/work/guacamole-xnu/guacamole-xnu/dxb/build/xnu.obj/DEVELOPMENT_ARM64_SWEET//kernel.development.sweet.unstripped.noctf] Error 1
+```
+
+Причина: `makedefs/MakeInc.def:1154` безумовно додає `-Wl,-force_load,$(KDKROOT)/System/Library/KernelSupport/lib$(CURRENT_MACHINE_CONFIG).os.$(CURRENT_KERNEL_CONFIG).a`
+для будь-якого `CURRENT_MACHINE_CONFIG != NONE`. Apple KDK не має бінарної бібліотеки підтримки для `SWEET`.
+У пріор-арті akita (`macos-pixel8a`) для `SHENG` зроблено виняток `ifeq ($(filter NONE SHENG,$(CURRENT_MACHINE_CONFIG)),)`.
+Патч 0008 додає `SWEET` до цього винятку (`ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)`).
+
 ---
 
 ## Як збирати
@@ -110,7 +132,7 @@ Workflow тепер має `set -o pipefail` і падає, якщо `kernel.dev
 Xcode/SDK 26.x, а не найстаріший, як зараз у workflow).
 
 ```bash
-# у дереві xnu-12377.121.6, після застосування 0001..0007
+# у дереві xnu-12377.121.6, після застосування 0001..0008
 git apply /path/to/0001-makeinc-sweet-machine-config.patch
 git apply /path/to/0002-sweet-board-header.patch
 git apply /path/to/0003-sweet-board-config.patch
@@ -118,6 +140,7 @@ git apply /path/to/0004-sweet-cache-geometry.patch
 git apply /path/to/0005-sweet-gic-group1.patch
 git apply /path/to/0006-sweet-no-cpmu.patch
 git apply /path/to/0007-sweet-mpidr-coretype-include.patch
+git apply /path/to/0008-sweet-no-kdk-kernelsupport.patch
 
 # те, що робить build.sh всередині:
 MACOS_VERSION=26.5 \

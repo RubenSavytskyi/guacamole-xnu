@@ -39,6 +39,7 @@ jobs:
           python3 --version
           python3 ci/test_pac_count.py
           python3 ci/test_dsc_hist.py
+          python3 ci/test_accept.py
 
       - name: Fetch Tahoe build driver and SWEET patches
         run: |
@@ -113,20 +114,26 @@ jobs:
             # either way and do not fail the collection step.
             python3 ci/pac_count.py "out/$(basename "$KERNEL")" \
               --json out/pac-count.json || echo "pac_count exit=$?"
-          else
-            echo "::error::no kernel.development.* was produced"
-            exit 1
+            (cd out && shasum -a 256 kernel.* > SHA256SUMS) || true
           fi
           SDK=$(xcrun --sdk macosx --show-sdk-path)
           mkdir -p sdk-kernel-platform
           cp -R "$SDK/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform" sdk-kernel-platform/ || true
+          cp dxb/build.log out/build.log 2>/dev/null || true
+          if [ -f out/build.log ]; then
+            python3 ci/accept.py --log out/build.log ${KERNEL:+--kernel "out/$(basename "$KERNEL")"} \
+              --json out/criteria.json || echo "accept.py exit=$?"
+          fi
           tar czf out/buildtree.tgz \
             --exclude='*.o' --exclude='*.cpo' --exclude='*.a' --exclude='*.dSYM' --exclude='*.unstripped' \
             --exclude='kernel.development.*' --exclude='.git' \
             -C dxb build/xnu.obj fakeroot/usr/local/include xnu build.log \
-            -C .. sdk-kernel-platform
+            -C .. sdk-kernel-platform 2>/dev/null || true
           ls -la out
-          (cd out && shasum -a 256 kernel.* > SHA256SUMS) || true
+          if [ -z "$KERNEL" ]; then
+            echo "::error::no kernel.development.* was produced"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()
