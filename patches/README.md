@@ -26,8 +26,9 @@
 | 0004 | `osfmk/arm64/proc_reg.h` | `#elif defined (SWEET)` → `MMU_I_CLINE 6`, `MMU_CLINE 6` |
 | 0005 | `pexpert/arm/pe_fiq.c` | для `SWEET` конфігурує GIC **Group 1 NS** (IGROUPR0=all-1, пріоритети, vtimer INTID 19 + SGI1, `ICC_BPR1_EL1`, `ARE_NS\|EnableGrp1A\|EnableGrp1`, `ICC_IGRPEN1_EL1`); Apple-гілка з `GICD_CTLR_ENABLEGRP0` лишається під `#else`. Прибирає `use of undeclared identifier 'GICD_CTLR_ENABLEGRP0'` і одночасно runtime-блокер: Group 0 належить TrustZone |
 | 0006 | `pexpert/pexpert/arm64/SWEET.h` + `osfmk/arm64/cpc_arm64.c` | дає `CPMU_PMC_COUNT 10` та нулі для решти CPMU-фіч (структури CPC існують, нічого не програмується) і виставляє `cpc_cpmu_supported = false` для `SWEET`. Прибирає `use of undeclared identifier 'CPMU_PMC_COUNT'`: у 12377 `CONFIG_CPU_COUNTERS` увімкнено завжди, а CPMU-константи є лише в Apple-заголовках `H1x.h` |
+| 0007 | `pexpert/pexpert/arm64/apple_arm64_cpu.h` | включає `apple_arm64_regs.h` перед `arm64_core_type()`. Без нього `MPIDR_CORETYPE_*` невидимі в `osfmk/arm/machine_routines_common.c`, `osfmk/arm64/pcb.c` і `sleh.c`: на Apple-конфігах їх приносить `apple_arm64_common.h` через `board_config.h`, а SWEET його не включає |
 
-Порядок застосування — саме 0001 → 0006.
+Порядок застосування — саме 0001 → 0007.
 
 ### Чому саме так
 
@@ -78,6 +79,28 @@ osfmk/arm64/cpc_arm64.h:123:42: same
 `link_kdk.patch` / `remove_applefeatures_include.patch` DXB пропускає з
 warning'ом — це не причина падіння.
 
+## Фактичні помилки другої збірки (run 44271872336)
+
+Крок Build у GitHub показав **зелений ✓**, але ядра в артефакті немає:
+`bash build.sh 2>&1 | tee build.log` виконувався без `set -o pipefail`, тому
+статус повертав `tee`, а не `build.sh`. У `build.log` (727 MB) —
+
+```text
+make[2]: Target `build_all' not remade because of errors.
+make[1]: *** [build_all_bootstrap_DEVELOPMENT^ARM64^SWEET] Error 2
+make: *** [install] Error 2
+```
+
+Єдина причина — `MPIDR_CORETYPE_*` у `pexpert/pexpert/arm64/apple_arm64_cpu.h`
+(рядки 40–42, 54), які приходять із `apple_arm64_regs.h`. На Apple-конфігах
+цей заголовок уже включений через `apple_arm64_common.h` → `board_config.h`,
+а SWEET включає лише свій `SWEET.h`. Ламалися `osfmk/arm/machine_routines_common.c`
+і `osfmk/arm64/pcb.c` (по два входження кожного ідентифікатора). Патч 0007
+включає `apple_arm64_regs.h` безпосередньо в `apple_arm64_cpu.h`.
+
+Workflow тепер має `set -o pipefail` і падає, якщо `kernel.development.*`
+не з'явився, — «зелений без ядра» більше неможливий.
+
 ---
 
 ## Як збирати
@@ -87,13 +110,14 @@ warning'ом — це не причина падіння.
 Xcode/SDK 26.x, а не найстаріший, як зараз у workflow).
 
 ```bash
-# у дереві xnu-12377.121.6, після застосування 0001..0006
+# у дереві xnu-12377.121.6, після застосування 0001..0007
 git apply /path/to/0001-makeinc-sweet-machine-config.patch
 git apply /path/to/0002-sweet-board-header.patch
 git apply /path/to/0003-sweet-board-config.patch
 git apply /path/to/0004-sweet-cache-geometry.patch
 git apply /path/to/0005-sweet-gic-group1.patch
 git apply /path/to/0006-sweet-no-cpmu.patch
+git apply /path/to/0007-sweet-mpidr-coretype-include.patch
 
 # те, що робить build.sh всередині:
 MACOS_VERSION=26.5 \
@@ -134,19 +158,20 @@ lipo -info build/obj/kernel.development.sweet   # очікуємо: arm64
 ```bash
 cd xnu-12377.121.6            # чистий тег
 git status --short            # порожньо
-for f in 000{1,2,3,4,5,6}-*.patch; do git apply --check "$f" && git apply "$f"; done
+for f in 000{1,2,3,4,5,6,7}-*.patch; do git apply --check "$f" && git apply "$f"; done
 git status --short
 #  M makedefs/MakeInc.def
 #  M osfmk/arm64/cpc_arm64.c
 #  M osfmk/arm64/proc_reg.h
 #  M pexpert/arm/pe_fiq.c
 #  M pexpert/pexpert/arm64/Makefile
+#  M pexpert/pexpert/arm64/apple_arm64_cpu.h
 #  M pexpert/pexpert/arm64/board_config.h
 # ?? pexpert/pexpert/arm64/SWEET.h
 git checkout -- . && git clean -fd     # повернути дерево в тег
 ```
 
-Результат на 2026-11-17/18: усі шість пройшли `git apply --check` і наклалися
+Результат на 2026-11-17/18: усі сім пройшли `git apply --check` і наклалися
 саме з таким `git status`. Після цього дерево повернуто до `ac9718f`
 (працюємо з патчами, а не зі зміненим деревом).
 
