@@ -179,6 +179,12 @@ Patch 0011 gates the Apple PPL-only lockdown operations on `XNU_MONITOR`, uses
 the generic PTE address in diagnostics, and adds the forward declaration. This
 is the expected non-monitor path for Qualcomm SWEET hardware.
 
+Run `44394599033` got past those C errors and stopped because `files.arm64`
+selected four Apple AMCC implementation files (`amcc_rorgn_ppl*.c`,
+`amcc_rorgn_common.c`, `amcc_rorgn_pv_ctrr.c`) that are not present in the
+public source tree. Patch 0012 declares `apple_amcc` and makes these files
+conditional on that Apple-only feature; SWEET does not select it.
+
 
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
@@ -213,6 +219,9 @@ git apply /path/to/0006-sweet-no-cpmu.patch
 git apply /path/to/0007-sweet-mpidr-coretype-include.patch
 git apply /path/to/0008-sweet-no-kdk-kernelsupport.patch
 git apply /path/to/0009-sweet-enable-generic-arm64-implementations.patch
+git apply /path/to/0010-public-arm64-bootstrap.patch
+git apply /path/to/0011-public-pmap-without-monitor.patch
+git apply /path/to/0012-only-build-apple-amcc-files.patch
 
 # те, що робить build.sh всередині:
 MACOS_VERSION=26.5 \
