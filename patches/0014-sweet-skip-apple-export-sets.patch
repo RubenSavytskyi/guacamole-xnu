@@ -1,0 +1,49 @@
+diff --git a/config/Makefile b/config/Makefile
+index 0000000..1111111 100644
+--- a/config/Makefile
++++ b/config/Makefile
+@@ -46,11 +46,14 @@
+ endif
+ 
+ EXPORTS_FILES := $(foreach symbolset,$(SYMBOL_COMPONENT_LIST),$(symbolset).exports \
+-	$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).exports \
+-	$(notdir $(wildcard $(SOURCE)/$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).$(PLATFORM).exports))) \
++	$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).exports) \
+ 	Unused.exports
++ifneq ($(CURRENT_MACHINE_CONFIG),SWEET)
++EXPORTS_FILES += $(foreach symbolset,$(SYMBOL_COMPONENT_LIST), \
++	$(notdir $(wildcard $(SOURCE)/$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).$(PLATFORM).exports)))
+ EXPORTS_FILES += $(TIGHTBEAM_EXPORTS)
+ Private_OTHER_EXPORTS += $(TIGHTBEAM_EXPORTS)
++endif
+ 
+ 
+ Kasan_EXPORTS := $(SRCROOT)/config/Kasan_disabled.exports
+@@ -71,6 +74,11 @@
+ 
+ define symbol_set_template
+ $(1)_EXPORTS := $$(addprefix $$(SOURCE)/,$$(filter $(1)%,$$(EXPORTS_FILES)))
++ifeq ($$(CURRENT_MACHINE_CONFIG),SWEET)
++ifeq ($(1),Private)
++$(1)_EXPORTS :=
++endif
++endif
+ ifneq "$$($(1)_OTHER_EXPORTS)" ""
+ $(1)_EXPORTS += $$($(1)_OTHER_EXPORTS)
+ endif
+@@ -124,6 +132,7 @@
+ 	$(_v)$(NM) -gj $< | sort -u > $@
+ 
+ check_all_exports: $(TARGET)/allsymbols $(KEXT_CREATE_SYMBOL_SET)
++ifneq ($(CURRENT_MACHINE_CONFIG),SWEET)
+ 	$(_v)$(KEXT_CREATE_SYMBOL_SET)					\
+ 		$(ARCH_FLAGS_$(CURRENT_ARCH_CONFIG))			\
+ 		-import $(TARGET)/allsymbols				\
+@@ -138,6 +147,7 @@
+ 			-export $(SOURCE)/$(symbolset).exports		\
+ 			-export $(SOURCE)/$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).exports)	\
+ 		-output /dev/null $(_vstdout)
++endif
+ 
+ $(OBJPATH)/$(MD_SUPPORTED_KPI_FILENAME): $(EXPORTS_FILES)
+ 	@$(LOG_SUPPORTED_KPI) "$(CURRENT_ARCH_CONFIG_LC)"

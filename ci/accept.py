@@ -82,6 +82,9 @@ def kernel_slices(path):
     if magic in (0xFEEDFACE, 0xFEEDFACF):
         cpu, sub = struct.unpack_from(">ii", data, 4)
         return [(0, cpu & 0xFFFFFFFF, sub & 0xFFFFFFFF)]
+    if magic in (0xCEFAEDFE, 0xCFFAEDFE):
+        cpu, sub = struct.unpack_from("<ii", data, 4)
+        return [(0, cpu & 0xFFFFFFFF, sub & 0xFFFFFFFF)]
     raise ValueError("not a Mach-O (magic %#x)" % magic)
 
 

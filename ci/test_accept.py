@@ -101,6 +101,14 @@ class AcceptTest(unittest.TestCase):
         self.assertEqual(self.status(out, "c"), "PASS")
         self.assertIn("arm64", out)
 
+    def test_c_little_endian_arm64_passes(self):
+        hdr = struct.pack("<IIIIIIII", 0xFEEDFACF, CPU_TYPE_ARM64, 0,
+                          0, 0, 0, 0, 0)
+        k = self.write("kernel", hdr)
+        _code, out = self.run_accept(kernel=k)
+        self.assertEqual(self.status(out, "c"), "PASS")
+        self.assertIn("arm64", out)
+
     def test_c_arm64e_fails(self):
         k = self.write("kernel", macho(CPU_TYPE_ARM64, 0x80000002))
         _code, out = self.run_accept(kernel=k)
