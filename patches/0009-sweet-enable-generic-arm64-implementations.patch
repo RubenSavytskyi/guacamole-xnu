@@ -1,15 +1,17 @@
-diff --git a/config/MASTER.arm64.sweet b/config/MASTER.arm64.sweet
-new file mode 100644
-index 0000000..26b43a1
---- /dev/null
-+++ b/config/MASTER.arm64.sweet
-@@ -0,0 +1,8 @@
-+# SWEET is a non-Apple ARM64 platform. Select XNU's generic implementations
-+# instead of expecting Apple machine support from a KDK archive.
-+#
-+# files.arm64 gates pmap sources on nos_arm_pmap and machine/cache assembly
-+# on nos_arm_asm. osfmk/conf/Makefile includes this SoC-specific MASTER file.
+diff --git a/config/MASTER.arm64 b/config/MASTER.arm64
+index d17747a..e37b16c 100644
+--- a/config/MASTER.arm64
++++ b/config/MASTER.arm64
+@@ -102,3 +102,9 @@
+ options   CONFIG_RESLIDE_SHARED_CACHE		# <reslide_shared_cache>
+ options   CONFIG_KERNEL_TBI		# <kernel_tbi>
+ options   CONFIG_KERNEL_TAGGING		# <kernel_tagging>
 +
++# SWEET selects the generic open-source ARM64 pmap and assembly sources.
++# Keep this conditional in the base MASTER: doconf chooses a more-specific
++# SoC MASTER instead of merging it with MASTER.arm64.
++#if SOC_CONFIG_sweet
 +options NOS_ARM_PMAP
 +options NOS_ARM_ASM
++#endif
 

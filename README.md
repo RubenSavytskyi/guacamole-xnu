@@ -38,7 +38,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0006 | `SWEET.h` + `osfmk/arm64/cpc_arm64.c` | supplies `CPMU_PMC_COUNT` and marks the Apple CPMU unsupported: SM8150 has an ARM PMU, not Apple's |
 | 0007 | `apple_arm64_cpu.h` | directly includes `apple_arm64_regs.h` for `MPIDR_CORETYPE_*` |
 | 0008 | `makedefs/MakeInc.def` | skips the absent Apple KDK `libSWEET` archive |
-| 0009 | `config/MASTER.arm64.sweet` | enables XNU's generic ARM64 `NOS_ARM_PMAP` and `NOS_ARM_ASM` sources |
+| 0009 | `config/MASTER.arm64` | enables generic ARM64 `NOS_ARM_PMAP` and `NOS_ARM_ASM` for SWEET |
 
 The latest build reached final linking but failed with 241 groups of undefined
 symbols because generic ARM64 XNU sources were not selected for SWEET. Patch

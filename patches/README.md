@@ -148,10 +148,19 @@ KDK також повідомив, що `libTightbeam.a` не має `arm64` sli
 реалізацій XNU. У `osfmk/conf/files.arm64` `osfmk/arm/pmap/*.c` позначені
 `optional nos_arm_pmap`; `osfmk/arm64/caches_asm.s`, `pcb.c`,
 `machine_routines_apple.c` та інші arm64 assembly — `optional nos_arm_asm`.
-У `config/MASTER` обидві опції оголошені, а `osfmk/conf/Makefile` підключає
-`config/MASTER.arm64.$(CURRENT_MACHINE_CONFIG_LC)` для конфігурації SoC.
-Patch 0009 додає `config/MASTER.arm64.sweet` з цими двома опціями. Це
-пояснює основну масу pmap/cache/context символів без заглушок.
+У `config/MASTER` обидві опції оголошені. `osfmk/conf/Makefile` викликає
+`doconf` з `-soc sweet`, а `doconf` вибирає найбільш специфічний SoC MASTER
+замість злиття його з `MASTER.arm64`. Patch 0009 додає `#if
+SOC_CONFIG_sweet` до базового `config/MASTER.arm64`, зберігаючи штатні ARM64
+налаштування й вибираючи generic реалізації лише для SWEET.
+
+Прогін `44365593393` виявив помилку першої версії 0009: окремий
+`MASTER.arm64.sweet` замінив базовий master. У buildtree `config.DEVELOPMENT_ARM64`
+містив тільки кілька опцій, без `machine "arm64"`; `config` не згенерував
+Makefile для компонентів, тому збірка зупинилася до компіляції XNU. Виправлений
+0009 більше не додає SoC-specific MASTER; його правильність підтверджена
+накладанням на чистий `config/MASTER.arm64`. Наступний CI має перевірити вже
+згенерований конфіг і продовжити до компіляції та лінкування.
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
 `libTightbeam.a` не має `arm64` slice. Потрібно перевірити конфігурацію

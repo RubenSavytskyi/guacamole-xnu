@@ -238,7 +238,7 @@ def criterion_f(scan, kernel):
     if scan["make_failures"]:
         failures.extend(scan["make_failures"])
     if failures:
-        return "fail", "build did not link cleanly:\n  " + "\n  ".join(failures[:20])
+        return "fail", "build failed:\n  " + "\n  ".join(failures[:20])
     if not kernel:
         return "skipped", "no kernel was produced"
     return "pass", "kernel artifact produced with no linker or make failures"
