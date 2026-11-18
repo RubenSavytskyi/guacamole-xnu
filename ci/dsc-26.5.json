@@ -1,0 +1,338 @@
+{
+ "cache": {
+  "main_file": "dyld_shared_cache_arm64e",
+  "magic": "dyld_v1  arm64e",
+  "uuid": "46e0097ff38536c884a9a40d315a32d1",
+  "cache_type": 0,
+  "os_version": "26.5.0",
+  "shared_region_start": 6442450944,
+  "shared_region_size": 5990596608,
+  "files": [
+   "dyld_shared_cache_arm64e",
+   "dyld_shared_cache_arm64e.01",
+   "dyld_shared_cache_arm64e.02.dylddata",
+   "dyld_shared_cache_arm64e.03.dyldreadonly",
+   "dyld_shared_cache_arm64e.04.dyldlinkedit",
+   "dyld_shared_cache_arm64e.05",
+   "dyld_shared_cache_arm64e.06.dylddata",
+   "dyld_shared_cache_arm64e.07.dyldreadonly",
+   "dyld_shared_cache_arm64e.08.dyldlinkedit",
+   "dyld_shared_cache_arm64e.09",
+   "dyld_shared_cache_arm64e.10.dylddata",
+   "dyld_shared_cache_arm64e.11",
+   "dyld_shared_cache_arm64e.12.dyldlinkedit"
+  ],
+  "mappings": 34,
+  "images_total": 3646
+ },
+ "images_scanned": 3529,
+ "images_without_text": 117,
+ "images_unmapped": 0,
+ "images_bad_header": 0,
+ "text_bytes": 2860830300,
+ "words_scanned": 715207575,
+ "counts": {
+  "autda": 4435504,
+  "autdb": 29428,
+  "autia": 19283,
+  "autib": 7549,
+  "blraa": 5846831,
+  "blraaz": 223546,
+  "blrab": 360,
+  "braa": 586887,
+  "braaz": 18183,
+  "brab": 14,
+  "hint:autib1716": 1,
+  "hint:autibsp": 3094259,
+  "hint:pacia1716": 1749,
+  "hint:pacib1716": 1354,
+  "hint:pacibsp": 7993418,
+  "ldraa_neg": 4,
+  "ldraa_pre": 17,
+  "ldraa_wide": 1,
+  "pacda": 2304549,
+  "pacdb": 363007,
+  "pacga": 724,
+  "pacia": 2537813,
+  "pacib": 3030,
+  "retab": 5405835,
+  "xpacd": 1272821,
+  "xpaci": 31491
+ },
+ "groups": {
+  "retab": 5405835,
+  "retaa": 0,
+  "eretaa_eretab": 0,
+  "braa": 605070,
+  "blraa": 6070737,
+  "ldraa_ldrab": 22,
+  "pacia_pacib_pacda_pacdb": 5208399,
+  "autia_autib_autda_autdb": 4491764,
+  "xpaci_xpacd": 1304312,
+  "pacga": 724,
+  "pac_key_regs": 0
+ },
+ "ldraa": {
+  "pos": 0,
+  "neg": 4,
+  "pre_index": 17,
+  "not_rewritable_1to1": 1,
+  "offset_lt_minus_256": 5,
+  "total": 22
+ },
+ "ldraa_wide_examples": [],
+ "top_images": [
+  {
+   "path": "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI",
+   "pac": 386691,
+   "text_bytes": 21492152
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/NewsUI2.framework/Versions/A/NewsUI2",
+   "pac": 382034,
+   "text_bytes": 22748016
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI",
+   "pac": 375901,
+   "text_bytes": 20792248
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/WebCore.framework/Versions/A/WebCore",
+   "pac": 371899,
+   "text_bytes": 50589524
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/NewsFeed.framework/Versions/A/NewsFeed",
+   "pac": 334921,
+   "text_bytes": 25842816
+  },
+  {
+   "path": "/System/Library/Frameworks/WebKit.framework/Versions/A/Frameworks/WebCore.framework/Versions/A/WebCore",
+   "pac": 323535,
+   "text_bytes": 54562136
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/GameStoreKit.framework/Versions/A/GameStoreKit",
+   "pac": 295758,
+   "text_bytes": 21540644
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/MLIR_ML.framework/Versions/A/MLIR_ML",
+   "pac": 232959,
+   "text_bytes": 43643408
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/PegasusAPI.framework/Versions/A/PegasusAPI",
+   "pac": 194894,
+   "text_bytes": 11854620
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/PhotosUICore.framework/Versions/A/PhotosUICore",
+   "pac": 190299,
+   "text_bytes": 17064648
+  },
+  {
+   "path": "/System/Library/Frameworks/WebKit.framework/Versions/A/WebKit",
+   "pac": 167959,
+   "text_bytes": 19149884
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/CoreRE.framework/Versions/A/CoreRE",
+   "pac": 163125,
+   "text_bytes": 22355440
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/IntelligenceFlowPlannerSupport.framework/Versions/A/IntelligenceFlowPlannerSupport",
+   "pac": 160804,
+   "text_bytes": 8525896
+  },
+  {
+   "path": "/System/Library/Frameworks/SwiftUICore.framework/Versions/A/SwiftUICore",
+   "pac": 159760,
+   "text_bytes": 13996136
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/PhotosUICore.framework/Versions/A/PhotosUICore",
+   "pac": 155451,
+   "text_bytes": 14341568
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/ANECompiler.framework/Versions/A/ANECompiler",
+   "pac": 149403,
+   "text_bytes": 21248912
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/ImagePlaygroundInternal.framework/Versions/A/ImagePlaygroundInternal",
+   "pac": 146640,
+   "text_bytes": 12799164
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/RemindersUICore.framework/Versions/A/RemindersUICore",
+   "pac": 146399,
+   "text_bytes": 10774984
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/MusicKitInternal.framework/Versions/A/MusicKitInternal",
+   "pac": 141050,
+   "text_bytes": 8644224
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/IntelligencePlatformCore.framework/Versions/A/IntelligencePlatformCore",
+   "pac": 137095,
+   "text_bytes": 10359148
+  },
+  {
+   "path": "/usr/lib/usd/libusd_ms.dylib",
+   "pac": 133480,
+   "text_bytes": 22193968
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/FileProviderDaemon.framework/Versions/A/FileProviderDaemon",
+   "pac": 130218,
+   "text_bytes": 11743608
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/JavaScriptCore",
+   "pac": 126754,
+   "text_bytes": 26886628
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/GPUCompiler.framework/Versions/32023/Libraries/libLLVM.dylib",
+   "pac": 126026,
+   "text_bytes": 32023572
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/MusicUI.framework/Versions/A/MusicUI",
+   "pac": 120989,
+   "text_bytes": 7574612
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/HomeDataModel.framework/Versions/A/HomeDataModel",
+   "pac": 120600,
+   "text_bytes": 8781028
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/Frameworks/WebKit.framework/Versions/A/WebKit",
+   "pac": 120588,
+   "text_bytes": 15327812
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/HomeDataModel.framework/Versions/A/HomeDataModel",
+   "pac": 119752,
+   "text_bytes": 8772448
+  },
+  {
+   "path": "/System/Library/Frameworks/JavaScriptCore.framework/Versions/A/JavaScriptCore",
+   "pac": 116680,
+   "text_bytes": 26085048
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/Frameworks/PaperKit.framework/Versions/A/PaperKit",
+   "pac": 115155,
+   "text_bytes": 7764380
+  },
+  {
+   "path": "/System/Library/Frameworks/MetalPerformanceShadersGraph.framework/Versions/A/MetalPerformanceShadersGraph",
+   "pac": 115153,
+   "text_bytes": 18402104
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/UIKitCore.framework/Versions/A/UIKitCore",
+   "pac": 115027,
+   "text_bytes": 26816068
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/CorePhotogrammetry.framework/Versions/A/CorePhotogrammetry",
+   "pac": 107282,
+   "text_bytes": 15620028
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/ConversationKit.framework/Versions/A/ConversationKit",
+   "pac": 102277,
+   "text_bytes": 7530988
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/SiriKitFlow.framework/Versions/A/SiriKitFlow",
+   "pac": 101310,
+   "text_bytes": 6344772
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/VFX.framework/Versions/A/VFX",
+   "pac": 100989,
+   "text_bytes": 14121536
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/VFX.framework/Versions/A/VFX",
+   "pac": 99123,
+   "text_bytes": 13787348
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/AppStoreKit.framework/Versions/A/AppStoreKit",
+   "pac": 98207,
+   "text_bytes": 7580408
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/BlastDoor.framework/Versions/A/BlastDoor",
+   "pac": 91687,
+   "text_bytes": 8736132
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/Espresso.framework/Versions/A/Espresso",
+   "pac": 91493,
+   "text_bytes": 13044572
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/ImagePlaygroundInternal.framework/Versions/A/ImagePlaygroundInternal",
+   "pac": 91333,
+   "text_bytes": 6342876
+  },
+  {
+   "path": "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+   "pac": 90871,
+   "text_bytes": 17730648
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/EmbeddedAcousticRecognition.framework/Versions/A/EmbeddedAcousticRecognition",
+   "pac": 87672,
+   "text_bytes": 11223052
+  },
+  {
+   "path": "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+   "pac": 85965,
+   "text_bytes": 12484852
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/PasswordManagerUI.framework/Versions/A/PasswordManagerUI",
+   "pac": 84427,
+   "text_bytes": 5525432
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/VectorKit.framework/Versions/A/VectorKit",
+   "pac": 82598,
+   "text_bytes": 12681820
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/VideosUI.framework/Versions/A/VideosUI",
+   "pac": 81917,
+   "text_bytes": 9389500
+  },
+  {
+   "path": "/System/iOSSupport/System/Library/PrivateFrameworks/ChatKit.framework/Versions/A/ChatKit",
+   "pac": 80896,
+   "text_bytes": 11747560
+  },
+  {
+   "path": "/System/Library/PrivateFrameworks/HomeKitDaemon.framework/Versions/A/HomeKitDaemon",
+   "pac": 78068,
+   "text_bytes": 17915632
+  },
+  {
+   "path": "/System/Library/Frameworks/AppIntents.framework/Versions/A/AppIntents",
+   "pac": 78030,
+   "text_bytes": 4703220
+  }
+ ],
+ "total_non_hint_pac": 23086877,
+ "total_hint_pac": 11090781
+}

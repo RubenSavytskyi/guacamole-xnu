@@ -1,0 +1,10 @@
+# CI output, never committed
+out/
+*.log
+# Apple artifacts / caches
+*.ipsw
+*.dmg
+*.aea
+*.kc
+dyld-arm64e/
+__pycache__/

@@ -1,0 +1,363 @@
+{
+ "rules": [
+  {
+   "id": "pac-dp",
+   "class": "pac",
+   "mask": 4294901760,
+   "value": 3670081536,
+   "emit": {
+    "base": "0xd503201f"
+   },
+   "note": "PACIA/PACIB/PACDA/PACDB, AUTIA/AUTIB/AUTDA/AUTDB, Z-forms, XPACI/XPACD. PAC is a no-op; AUT/XPAC strip a field that is already canonical, so both become NOP. Z-forms with Rn != 31 are unallocated and stay untouched."
+  },
+  {
+   "id": "pacga",
+   "class": "pacga",
+   "mask": 4292934656,
+   "value": 2596286464,
+   "emit": {
+    "base": "0xd2800000",
+    "set": [
+     {
+      "src": "rd",
+      "at": [
+       4,
+       0
+      ]
+     }
+    ]
+   },
+   "note": "PACGA -> MOVZ Xd,#0. Deterministic; any code that only compares PACGA results keeps working (0 == 0). RISK: code that treats a zero MAC as invalid, or uses the MAC as a hash. Fallback: --pacga=trap."
+  },
+  {
+   "id": "retaa",
+   "class": "ret",
+   "mask": 4294967295,
+   "value": 3596553215,
+   "emit": {
+    "base": "0xd65f03c0"
+   },
+   "note": "RETAA -> RET"
+  },
+  {
+   "id": "retab",
+   "class": "ret",
+   "mask": 4294967295,
+   "value": 3596554239,
+   "emit": {
+    "base": "0xd65f03c0"
+   },
+   "note": "RETAB -> RET"
+  },
+  {
+   "id": "eretaa",
+   "class": "eret",
+   "mask": 4294967295,
+   "value": 3600747519,
+   "emit": {
+    "base": "0xd69f03e0"
+   },
+   "note": "ERETAA -> ERET. EL1 only: on a non-arm64e kernel this never appears; in userland ERET is privileged and would trap, but so would the original."
+  },
+  {
+   "id": "eretab",
+   "class": "eret",
+   "mask": 4294967295,
+   "value": 3600748543,
+   "emit": {
+    "base": "0xd69f03e0"
+   },
+   "note": "ERETAB -> ERET"
+  },
+  {
+   "id": "braa",
+   "class": "br",
+   "mask": 4294966272,
+   "value": 3609135104,
+   "emit": {
+    "base": "0xd61f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BRAA -> BR Xn (modifier/key ignored)"
+  },
+  {
+   "id": "brab",
+   "class": "br",
+   "mask": 4294966272,
+   "value": 3609136128,
+   "emit": {
+    "base": "0xd61f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BRAB -> BR Xn"
+  },
+  {
+   "id": "braaz",
+   "class": "br",
+   "mask": 4294966303,
+   "value": 3592357919,
+   "emit": {
+    "base": "0xd61f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BRAAZ -> BR Xn"
+  },
+  {
+   "id": "brabz",
+   "class": "br",
+   "mask": 4294966303,
+   "value": 3592358943,
+   "emit": {
+    "base": "0xd61f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BRABZ -> BR Xn"
+  },
+  {
+   "id": "blraa",
+   "class": "blr",
+   "mask": 4294966272,
+   "value": 3611232256,
+   "emit": {
+    "base": "0xd63f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BLRAA -> BLR Xn"
+  },
+  {
+   "id": "blrab",
+   "class": "blr",
+   "mask": 4294966272,
+   "value": 3611233280,
+   "emit": {
+    "base": "0xd63f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BLRAB -> BLR Xn"
+  },
+  {
+   "id": "blraaz",
+   "class": "blr",
+   "mask": 4294966303,
+   "value": 3594455071,
+   "emit": {
+    "base": "0xd63f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BLRAAZ -> BLR Xn"
+  },
+  {
+   "id": "blrabz",
+   "class": "blr",
+   "mask": 4294966303,
+   "value": 3594456095,
+   "emit": {
+    "base": "0xd63f0000",
+    "set": [
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     }
+    ]
+   },
+   "note": "BLRABZ -> BLR Xn"
+  },
+  {
+   "id": "ldraa-pos",
+   "class": "ldra",
+   "mask": 4280288256,
+   "value": 4162847744,
+   "emit": {
+    "base": "0xf9400000",
+    "set": [
+     {
+      "src": "simm10",
+      "at": [
+       21,
+       10
+      ]
+     },
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     },
+     {
+      "src": "rt",
+      "at": [
+       4,
+       0
+      ]
+     }
+    ]
+   },
+   "note": "LDRAA/LDRAB, no writeback, offset >= 0 -> LDR (unsigned imm12*8). simm10 is in units of 8 bytes, so imm12 == simm10."
+  },
+  {
+   "id": "ldraa-neg",
+   "class": "ldra",
+   "mask": 4280288256,
+   "value": 4162847744,
+   "emit": {
+    "base": "0xf8400000",
+    "set": [
+     {
+      "src": "simm10",
+      "at": [
+       20,
+       12
+      ],
+      "shl": 3
+     },
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     },
+     {
+      "src": "rt",
+      "at": [
+       4,
+       0
+      ]
+     }
+    ]
+   },
+   "note": "LDRAA/LDRAB, no writeback, offset in [-256,-8] -> LDUR (unscaled imm9)."
+  },
+  {
+   "id": "ldraa-pre",
+   "class": "ldra",
+   "mask": 4280288256,
+   "value": 4162847744,
+   "emit": {
+    "base": "0xf8400c00",
+    "set": [
+     {
+      "src": "simm10",
+      "at": [
+       20,
+       12
+      ],
+      "shl": 3
+     },
+     {
+      "src": "rn",
+      "at": [
+       9,
+       5
+      ]
+     },
+     {
+      "src": "rt",
+      "at": [
+       4,
+       0
+      ]
+     }
+    ]
+   },
+   "note": "LDRAA/LDRAB with writeback, offset in [-256,248] -> LDR (pre-index, imm9). Base register is updated exactly as before."
+  },
+  {
+   "id": "ldraa-wide",
+   "class": "trapped",
+   "mask": 4280288256,
+   "value": 4162847744,
+   "emit": null,
+   "note": "Catch-all: LDRAA/LDRAB whose offset does not fit LDUR/LDR pre-index (writeback outside [-256,248], or no writeback below -256). Cannot be rewritten in place -> stays for the trap handler. Counted by the reporter."
+  },
+  {
+   "id": "mrs-pac-key",
+   "class": "mrs",
+   "mask": 4294963200,
+   "value": 3577225216,
+   "emit": {
+    "base": "0xd2800000",
+    "set": [
+     {
+      "src": "rt",
+      "at": [
+       4,
+       0
+      ]
+     }
+    ]
+   },
+   "note": "MRS Xt, APIA/APIB/APDA/APDB/APGAKeyLo|Hi (S3_0_C2_C{1,2,3}_{0..3}) -> MOVZ Xt,#0. These registers are UNDEF on non-PAuth CPUs, so the read would trap with EC=0x00; pac_emul.c does not decode system registers."
+  },
+  {
+   "id": "msr-pac-key",
+   "class": "msr",
+   "mask": 4294963200,
+   "value": 3575128064,
+   "emit": {
+    "base": "0xd503201f"
+   },
+   "note": "MSR <PAC key>, Xt -> NOP. Writing an UNDEF key register traps on non-PAuth CPUs."
+  }
+ ]
+}
