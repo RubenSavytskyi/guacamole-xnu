@@ -164,6 +164,14 @@ were never selected in the actual MacOSX master. The corrected 0009 now changes
 values flip to 1 and report the remaining link issues. It may still fail on
 `_tb_transport_startup`: the KDK warns that Tightbeam has no plain `arm64` slice.
 
+Run `44377642599` verified that the generic source groups are now selected, but
+compilation stopped at two absent Apple private files: `arm64/ppl/sart.h` in
+`pmap.c` and `arm64/tunables/tunables.s` in `start.s`. Patch 0010 keeps the
+SART bootstrap as a no-op when that Apple header is unavailable (SM8150 has no
+Apple SART) and confines the per-SoC tunables assembly to Apple arm64 families.
+The source patch applies cleanly to the captured XNU 12377 tree. Next CI should
+show whether compiling and linking now complete or expose further gaps.
+
 
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
