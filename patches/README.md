@@ -185,6 +185,13 @@ selected four Apple AMCC implementation files (`amcc_rorgn_ppl*.c`,
 public source tree. Patch 0012 declares `apple_amcc` and makes these files
 conditional on that Apple-only feature; SWEET does not select it.
 
+Run `44400572741` now links down to five symbols: the generic cache assembly's
+missing no-HID alias, Apple's production-fuse query, `pmap_pending_preemption`,
+`ml_enable_monitor`, and `tb_transport_startup`. Patch 0013 adds the non-Apple
+cache alias and fuse result, supplies the public debug wrapper, guards monitor
+entry when `XNU_MONITOR=0`, and skips the arm64e-only Tightbeam startup when
+building SWEET. It applies cleanly to the captured source tree.
+
 
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
@@ -222,6 +229,7 @@ git apply /path/to/0009-sweet-enable-generic-arm64-implementations.patch
 git apply /path/to/0010-public-arm64-bootstrap.patch
 git apply /path/to/0011-public-pmap-without-monitor.patch
 git apply /path/to/0012-only-build-apple-amcc-files.patch
+git apply /path/to/0013-non-apple-arm64-runtime-stubs.patch
 
 # те, що робить build.sh всередині:
 MACOS_VERSION=26.5 \

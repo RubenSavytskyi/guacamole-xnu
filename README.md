@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0012, applied in order to the clean xnu-12377.121.6 tag
+patches/   0001..0013, applied in order to the clean xnu-12377.121.6 tag
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -42,6 +42,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0010 | `osfmk/arm/pmap/pmap.c`, `osfmk/arm64/start.s` | guards Apple private PPL/tunables files for SWEET |
 | 0011 | `osfmk/arm/pmap/pmap.c` | removes PPL-only calls from the non-monitor path |
 | 0012 | `config/MASTER`, `osfmk/conf/files.arm64` | excludes Apple AMCC sources absent from public XNU and Qualcomm hardware |
+| 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
 
 The latest build reached final linking but failed with 241 groups of undefined
 symbols because generic ARM64 XNU sources were not selected for SWEET. Patch
@@ -50,7 +51,9 @@ two Apple-only headers missing from the public XNU drop; 0010 gates those paths
 for non-Apple SWEET hardware. Patch 0011 fixes generic pmap calls that still expected monitor-only PPL
 functions. Run 44394599033 then reached source selection but failed because
 four Apple AMCC implementations are absent from the open source drop; patch
-0012 makes those files Apple-only. See `patches/README.md` for details.
+0012 makes those files Apple-only. Run 44400572741 then linked and reported five
+remaining symbols; 0013 supplies the missing non-Apple runtime paths. See
+`patches/README.md` for details.
 
 Details, rationale and the exact compiler errors that produced 0005/0006 are
 in [`patches/README.md`](patches/README.md).
