@@ -10,3 +10,4 @@ index a2d26f5..bf3a81e 100644
 +ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)
          LDFLAGS_KERNEL_ONLY += -rdynamic -Wl,-force_load,$(KDKROOT)/System/Library/KernelSupport/lib$(CURRENT_MACHINE_CONFIG).os.$(CURRENT_KERNEL_CONFIG).a
  endif
+ 

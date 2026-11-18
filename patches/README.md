@@ -123,6 +123,8 @@ make[3]: *** [/Users/runner/work/guacamole-xnu/guacamole-xnu/dxb/build/xnu.obj/D
 У пріор-арті akita (`macos-pixel8a`) для `SHENG` зроблено виняток `ifeq ($(filter NONE SHENG,$(CURRENT_MACHINE_CONFIG)),)`.
 Патч 0008 додає `SWEET` до цього винятку (`ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)`).
 
+У прогоні `44300012809` перша версія патча 0008 була пропущена DXB через ваду форматування diff (`corrupt patch at line 13: missing context line`); після повторної генерації через чистий `git diff` патч 0008 проходить `git apply --check` і накладається без зауважень.
+
 ---
 
 ## Як збирати
