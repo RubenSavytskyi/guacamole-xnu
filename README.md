@@ -38,11 +38,11 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0006 | `SWEET.h` + `osfmk/arm64/cpc_arm64.c` | supplies `CPMU_PMC_COUNT` and marks the Apple CPMU unsupported: SM8150 has an ARM PMU, not Apple's |
 | 0007 | `apple_arm64_cpu.h` | directly includes `apple_arm64_regs.h` for `MPIDR_CORETYPE_*` |
 | 0008 | `makedefs/MakeInc.def` | skips the absent Apple KDK `libSWEET` archive |
-| 0009 | `config/MASTER.arm64` | enables generic ARM64 `NOS_ARM_PMAP` and `NOS_ARM_ASM` for SWEET |
+| 0009 | `config/MASTER.arm64.MacOSX` | selects generic ARM64 `nos_arm_pmap` and `nos_arm_asm` sources for SWEET |
 
 The latest build reached final linking but failed with 241 groups of undefined
 symbols because generic ARM64 XNU sources were not selected for SWEET. Patch
-0009 enables those sources; the next CI build must verify that selection and
+0009 adds those selectors to `KERNEL_BASE` for SWEET; the next CI build must verify that selection and
 check the remaining Tightbeam dependency. See `patches/README.md` for details.
 
 Details, rationale and the exact compiler errors that produced 0005/0006 are

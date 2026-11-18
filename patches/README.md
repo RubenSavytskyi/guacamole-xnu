@@ -150,17 +150,21 @@ KDK також повідомив, що `libTightbeam.a` не має `arm64` sli
 `machine_routines_apple.c` та інші arm64 assembly — `optional nos_arm_asm`.
 У `config/MASTER` обидві опції оголошені. `osfmk/conf/Makefile` викликає
 `doconf` з `-soc sweet`, а `doconf` вибирає найбільш специфічний SoC MASTER
-замість злиття його з `MASTER.arm64`. Patch 0009 додає `#if
-SOC_CONFIG_sweet` до базового `config/MASTER.arm64`, зберігаючи штатні ARM64
-налаштування й вибираючи generic реалізації лише для SWEET.
+замість злиття його з `MASTER.arm64`. `doconf` selects `MASTER.arm64.MacOSX` for this build. Patch 0009 adds a
+SWEET-only `SWEET_MACHINE = [ nos_arm_asm nos_arm_pmap ]` selector to that
+master and includes it in `KERNEL_BASE`. Declaring options in the master does
+not enable their `optional` file groups; the generated header still had
+`NNOS_ARM_PMAP 0` and `NNOS_ARM_ASM 0`, so no generic implementation objects
+were compiled.
 
-Прогін `44365593393` виявив помилку першої версії 0009: окремий
-`MASTER.arm64.sweet` замінив базовий master. У buildtree `config.DEVELOPMENT_ARM64`
-містив тільки кілька опцій, без `machine "arm64"`; `config` не згенерував
-Makefile для компонентів, тому збірка зупинилася до компіляції XNU. Виправлений
-0009 більше не додає SoC-specific MASTER; його правильність підтверджена
-накладанням на чистий `config/MASTER.arm64`. Наступний CI має перевірити вже
-згенерований конфіг і продовжити до компіляції та лінкування.
+The 44370098072 log confirmed that the build then reached linking, but failed
+with hundreds of undefined references because `nos_arm_asm` and `nos_arm_pmap`
+were never selected in the actual MacOSX master. The corrected 0009 now changes
+`config/MASTER.arm64.MacOSX`; the next CI must confirm the generated `NNOS_*`
+values flip to 1 and report the remaining link issues. It may still fail on
+`_tb_transport_startup`: the KDK warns that Tightbeam has no plain `arm64` slice.
+
+
 
 Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
 `libTightbeam.a` не має `arm64` slice. Потрібно перевірити конфігурацію
