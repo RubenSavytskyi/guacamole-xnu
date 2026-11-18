@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0006, applied in order to the clean xnu-12377.121.6 tag
+patches/   0001..0008, applied in order to the clean xnu-12377.121.6 tag
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -36,6 +36,14 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0004 | `osfmk/arm64/proc_reg.h` | `MMU_I_CLINE`/`MMU_CLINE` = 6 for SWEET |
 | 0005 | `pexpert/arm/pe_fiq.c` | GIC **Group 1 NS** for SWEET: Group 0 belongs to TrustZone, so the vtimer and IPIs would never arrive otherwise |
 | 0006 | `SWEET.h` + `osfmk/arm64/cpc_arm64.c` | supplies `CPMU_PMC_COUNT` and marks the Apple CPMU unsupported: SM8150 has an ARM PMU, not Apple's |
+| 0007 | `apple_arm64_cpu.h` | directly includes `apple_arm64_regs.h` for `MPIDR_CORETYPE_*` |
+| 0008 | `makedefs/MakeInc.def` | skips the absent Apple KDK `libSWEET` archive |
+| 0009 | `config/MASTER.arm64.sweet` | enables XNU's generic ARM64 `NOS_ARM_PMAP` and `NOS_ARM_ASM` sources |
+
+The latest build reached final linking but failed with 241 groups of undefined
+symbols because generic ARM64 XNU sources were not selected for SWEET. Patch
+0009 enables those sources; the next CI build must verify that selection and
+check the remaining Tightbeam dependency. See `patches/README.md` for details.
 
 Details, rationale and the exact compiler errors that produced 0005/0006 are
 in [`patches/README.md`](patches/README.md).
@@ -74,3 +82,4 @@ The workflow is manual + on push to `patches/**`. It:
   covers almost all of them. Result: `ci/dsc-26.5.json`.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
+

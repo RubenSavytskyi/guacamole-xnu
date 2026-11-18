@@ -1,0 +1,15 @@
+diff --git a/config/MASTER.arm64.sweet b/config/MASTER.arm64.sweet
+new file mode 100644
+index 0000000..26b43a1
+--- /dev/null
++++ b/config/MASTER.arm64.sweet
+@@ -0,0 +1,8 @@
++# SWEET is a non-Apple ARM64 platform. Select XNU's generic implementations
++# instead of expecting Apple machine support from a KDK archive.
++#
++# files.arm64 gates pmap sources on nos_arm_pmap and machine/cache assembly
++# on nos_arm_asm. osfmk/conf/Makefile includes this SoC-specific MASTER file.
++
++options NOS_ARM_PMAP
++options NOS_ARM_ASM
+

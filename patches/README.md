@@ -29,7 +29,7 @@
 | 0007 | `pexpert/pexpert/arm64/apple_arm64_cpu.h` | включає `apple_arm64_regs.h` перед `arm64_core_type()`. Без нього `MPIDR_CORETYPE_*` невидимі в `osfmk/arm/machine_routines_common.c`, `osfmk/arm64/pcb.c` і `sleh.c`: на Apple-конфігах їх приносить `apple_arm64_common.h` через `board_config.h`, а SWEET його не включає |
 | 0008 | `makedefs/MakeInc.def` | вимикає примусове лінкування `$(KDKROOT)/System/Library/KernelSupport/libSWEET.os.DEVELOPMENT.a` для `SWEET` (`ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)`). У KDK Apple є такі архіви лише для Apple SoC (T6000, T8103 тощо); для кастомних платформ (як і для `SHENG` у пріор-арті akita) вони відсутні |
 
-Порядок застосування — саме 0001 → 0008.
+Порядок застосування — саме 0001 → 0009.
 
 ### Чому саме так
 
@@ -123,6 +123,47 @@ make[3]: *** [/Users/runner/work/guacamole-xnu/guacamole-xnu/dxb/build/xnu.obj/D
 У пріор-арті akita (`macos-pixel8a`) для `SHENG` зроблено виняток `ifeq ($(filter NONE SHENG,$(CURRENT_MACHINE_CONFIG)),)`.
 Патч 0008 додає `SWEET` до цього винятку (`ifeq ($(filter NONE SWEET,$(CURRENT_MACHINE_CONFIG)),)`).
 
+## Прогін 44307308510: linker inventory та patch 0009
+
+Артефакт `xnu-buildtree` run `44307308510` відповідає HEAD `678fb7a`.
+Усі C/C++ джерела зібралися; kernel не з'явився. На фінальному лінкуванні
+`kernel.development.sweet.unstripped.noctf` ld вивів **241 групу
+невизначених символів**. Серед них:
+
+- arm64 cache assembly: `_CleanPoC_Dcache`, `_FlushPoC_DcacheRegion`,
+  `_InvalidatePoU_IcacheRegion`;
+- machine-dependent context/boot: `_machine_switch_context`,
+  `_arm64_thread_exception_return`, `_start_cpu`;
+- практично весь інтерфейс `pmap_*`, включно з `_pmap_bootstrap`,
+  `_pmap_enter`, `_pmap_remove` і `_pmap_zero_page`;
+- tightbeam startup: `_tb_transport_startup`.
+
+KDK також повідомив, що `libTightbeam.a` не має `arm64` slice (є
+`x86_64,arm64e.kernel`). DXB пропустив `link_kdk.patch` та
+`remove_applefeatures_include.patch` через невідповідні контексти; ці
+попередження самі по собі не пояснюють 241 символ.
+
+**Висновок [перевірено]:** patch 0008 прибрав спробу завантажити відсутній
+`libSWEET.os.DEVELOPMENT.a`, після чого проявився набір не вибраних generic
+реалізацій XNU. У `osfmk/conf/files.arm64` `osfmk/arm/pmap/*.c` позначені
+`optional nos_arm_pmap`; `osfmk/arm64/caches_asm.s`, `pcb.c`,
+`machine_routines_apple.c` та інші arm64 assembly — `optional nos_arm_asm`.
+У `config/MASTER` обидві опції оголошені, а `osfmk/conf/Makefile` підключає
+`config/MASTER.arm64.$(CURRENT_MACHINE_CONFIG_LC)` для конфігурації SoC.
+Patch 0009 додає `config/MASTER.arm64.sweet` з цими двома опціями. Це
+пояснює основну масу pmap/cache/context символів без заглушок.
+
+Окремо лишається `_tb_transport_startup`, а KDK попереджає, що
+`libTightbeam.a` не має `arm64` slice. Потрібно перевірити конфігурацію
+Exclaves/Tightbeam у наступному CI build після patch 0009; цей символ ще не
+виправлено. Навіть успішне лінкування саме по собі не доводить boot на SM8150.
+
+**Виправлення процесу:** старий критерій (e) перевіряв тільки frontend
+діагностики clang, тому міг бути `pass` попри linker failure. Додано критерій
+(f), що окремо вимагає відсутності ld/make-помилок і наявності kernel artifact.
+Повторний аналіз артефакту має повертати `FAIL` для (f), а не трактувати
+«немає kernel» лише як неповну перевірку.
+
 У прогоні `44300012809` перша версія патча 0008 була пропущена DXB через ваду форматування diff (`corrupt patch at line 13: missing context line`); після повторної генерації через чистий `git diff` патч 0008 проходить `git apply --check` і накладається без зауважень.
 
 ---
@@ -134,7 +175,7 @@ make[3]: *** [/Users/runner/work/guacamole-xnu/guacamole-xnu/dxb/build/xnu.obj/D
 Xcode/SDK 26.x, а не найстаріший, як зараз у workflow).
 
 ```bash
-# у дереві xnu-12377.121.6, після застосування 0001..0008
+# у дереві xnu-12377.121.6, після застосування 0001..0009
 git apply /path/to/0001-makeinc-sweet-machine-config.patch
 git apply /path/to/0002-sweet-board-header.patch
 git apply /path/to/0003-sweet-board-config.patch
@@ -143,6 +184,7 @@ git apply /path/to/0005-sweet-gic-group1.patch
 git apply /path/to/0006-sweet-no-cpmu.patch
 git apply /path/to/0007-sweet-mpidr-coretype-include.patch
 git apply /path/to/0008-sweet-no-kdk-kernelsupport.patch
+git apply /path/to/0009-sweet-enable-generic-arm64-implementations.patch
 
 # те, що робить build.sh всередині:
 MACOS_VERSION=26.5 \
@@ -218,3 +260,4 @@ git checkout -- . && git clean -fd     # повернути дерево в те
   це окремі патчі, не частина P0.
 - **P3** (framebuffer/UFS/PMIC/USB/touch, GIC Group 1) — порт з 8796/ios27,
   по одному патчу на підсистему.
+

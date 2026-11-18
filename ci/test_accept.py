@@ -164,6 +164,26 @@ class AcceptTest(unittest.TestCase):
         self.assertEqual(self.status(out, "e"), "PASS")
         self.assertIn("non-clang error lines (2 distinct)", out)
 
+    # (f) -------------------------------------------------------------
+    def test_f_unresolved_symbols_fail_build(self):
+        log = self.write(
+            "f.log",
+            "Undefined symbols for architecture arm64:\n"
+            "  \"_pmap_bootstrap\", referenced from:\n"
+            "ld: symbol(s) not found for architecture arm64\n"
+            "clang++: error: linker command failed with exit code 1\n"
+            "make[3]: *** [kernel.development.sweet] Error 1\n")
+        _code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "f"), "FAIL")
+        self.assertIn("Undefined symbols for architecture arm64", out)
+        self.assertIn("linker command failed", out)
+
+    def test_f_missing_kernel_is_incomplete(self):
+        log = self.write("f.log", "clang -c foo.c\n")
+        code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "f"), "SKIPPED")
+        self.assertEqual(code, 3)
+
     # partial input -----------------------------------------------------
     def test_missing_kernel_is_incomplete_not_pass(self):
         log = self.write("a.log", "clang -arch arm64 -c foo.c\n")
@@ -189,3 +209,4 @@ class AcceptTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

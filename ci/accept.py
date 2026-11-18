@@ -10,6 +10,7 @@ carries the number of matching lines and up to three samples.
   c) the kernel is a single arm64 (not arm64e) Mach-O slice
   d) zero non-hint PAC instructions in function bodies (ci/pac_count.py)
   e) the full list of compiler errors, deduplicated
+  f) no linker or make failure, and a kernel was produced
 
 Usage:
   python3 ci/accept.py --log build.log [--kernel kernel.development.sweet]
@@ -95,6 +96,7 @@ def scan_log(path, samples):
     pac_definitions = []
     errors = {}          # deduplicated clang diagnostics -> count
     other_errors = {}    # git apply / ld / misc -> count
+    link_errors = {}
     make_failures = []
     bytes_read = 0
 
@@ -132,6 +134,12 @@ def scan_log(path, samples):
                 else:
                     key = line.strip()[:200]
                     other_errors[key] = other_errors.get(key, 0) + 1
+            if ("Undefined symbols for architecture " in line
+                    or "ld: symbol(s) not found for architecture " in line
+                    or "clang++: error: linker command failed" in line
+                    or re.search(r"ld: library '.+' not found", line)):
+                key = line.strip()[:300]
+                link_errors[key] = link_errors.get(key, 0) + 1
             if "***" in line and ("Error " in line or "not remade" in line):
                 if len(make_failures) < 10:
                     make_failures.append(line.strip()[:300])
@@ -143,6 +151,7 @@ def scan_log(path, samples):
         "pac_definitions": pac_definitions,
         "errors": errors,
         "other_errors": other_errors,
+        "link_errors": link_errors,
         "make_failures": make_failures,
     }
 
@@ -221,6 +230,20 @@ def criterion_e(scan):
         len(errors), "\n  ".join(lines), extra)
 
 
+def criterion_f(scan, kernel):
+    failures = []
+    if scan["link_errors"]:
+        failures.extend("%s (x%d)" % (line, count)
+                        for line, count in scan["link_errors"].items())
+    if scan["make_failures"]:
+        failures.extend(scan["make_failures"])
+    if failures:
+        return "fail", "build did not link cleanly:\n  " + "\n  ".join(failures[:20])
+    if not kernel:
+        return "skipped", "no kernel was produced"
+    return "pass", "kernel artifact produced with no linker or make failures"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", help="build.log (make + clang output)")
@@ -232,7 +255,8 @@ def main():
     scan = {"log_bytes": 0, "flags": {t: {"count": 0, "samples": []}
                                      for t in FLAG_TOKENS},
             "pac_mentions": 0, "pac_definitions": [],
-            "errors": {}, "other_errors": {}, "make_failures": []}
+            "errors": {}, "other_errors": {}, "link_errors": {},
+            "make_failures": []}
     if args.log:
         scan = scan_log(args.log, args.samples)
 
@@ -243,8 +267,10 @@ def main():
         "c": criterion_c(args.kernel),
         "d": criterion_d(args.kernel),
         "e": criterion_e(scan) if args.log else ("skipped", "no --log given"),
+        "f": criterion_f(scan, args.kernel) if args.log else (
+            "skipped", "no --log given"),
     }
-    order = ["a", "b", "c", "d", "e"]
+    order = ["a", "b", "c", "d", "e", "f"]
     statuses = [verdicts[k][0] for k in order]
     if "fail" in statuses:
         code = 1
@@ -253,7 +279,7 @@ def main():
     else:
         code = 0
 
-    print("acceptance criteria (a)-(e)")
+    print("acceptance criteria (a)-(f)")
     if args.log:
         print("log: %s (%.1f MB)" % (args.log, scan["log_bytes"] / 1e6))
     if args.kernel:
@@ -278,6 +304,7 @@ def main():
             "pac_mentions": scan["pac_mentions"],
             "clang_errors": scan["errors"],
             "non_clang_errors": scan["other_errors"],
+            "link_errors": scan["link_errors"],
             "make_failures": scan["make_failures"],
         }
         with open(args.json, "w", encoding="utf-8") as f:
@@ -288,3 +315,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
