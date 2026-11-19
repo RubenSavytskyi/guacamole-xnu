@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0015 applied in order; 0015 adds early XNU framebuffer diagnostics
+patches/   0001..0016 applied in order; 0015 adds pre-MMU and 0016 adds post-MMU framebuffer diagnostics
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -45,6 +45,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
 | 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
 | 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer blocks at `_start`, `start_first_cpu`, after bootstrap table setup, and before MMU enable; compiled in run 17 |
+| 0016 | `osfmk/arm64/start.s` | maps the 32 MB framebuffer block in the early V=P table and paints post-MMU and post-SCTLR-check markers; build pending in run 18 |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -90,7 +91,7 @@ The workflow is manual + on push to `patches/**`. It:
 - Run `44520878510`: unit-test failure exposed that the DSC fast counter still used the old PAC-key match; fixed in `ci/dsc_hist.py` and confirmed by the successful run above.
 - Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`; run 17 built the kernel with patch `0015` applied.
 - Run `44546255336` (run 17): kernel artifact is 24,880,032 bytes, `arm64`, SHA-256 `19a14fe5d19ed0b1a6782924f073a08183ea64ae47395b3c5ff6574deada0bb2`; all acceptance criteria passed and PAC count is 0.
-- Run `44546255336` produced four early framebuffer checkpoints. The new kernel has not been device-tested.
+- Run `44546255336` produced four early framebuffer checkpoints. Device test of `tahoe-firstboot-0015.img` showed blue, yellow and white markers; execution past the pre-MMU checkpoint is not confirmed.
 - Run `44521215540` device test: shim printed `JUMP`; display stayed red. XNU execution past the handoff was not confirmed. That image did not contain patch `0015`.
 - The run 17 kernel was wrapped locally as `tahoe-firstboot-0015.img` with the existing D22 ADT and shim. It has not been tested on-device.
 
