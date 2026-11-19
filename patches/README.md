@@ -306,3 +306,18 @@ git checkout -- . && git clean -fd     # повернути дерево в те
 - **P3** (framebuffer/UFS/PMIC/USB/touch, GIC Group 1) — порт з 8796/ios27,
   по одному патчу на підсистему.
 
+
+
+## Patch 0014 and recent CI runs
+
+`0014-sweet-skip-apple-export-sets.patch` excludes platform-specific Apple/KDK
+exports and the Apple export consistency checks for SWEET. It supplies
+`Private.SWEET.exports` with an empty symbol list so `Private.symbolset.plist`
+can be generated without Apple-only exports.
+
+- Run `44406649506`: a kernel artifact was produced, but the build failed in
+  `check_all_exports` / `Private.symbolset`. The acceptance report counted 10
+  non-hint PAC instructions; its Mach-O parser did not recognize the
+  little-endian header.
+- Run `44414383264`: build failed generating `Private.symbolset.plist` because
+  the SWEET private export list had no input file. Patch 0014 now adds that file.

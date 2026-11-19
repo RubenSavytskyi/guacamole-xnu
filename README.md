@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0013, applied in order to the clean xnu-12377.121.6 tag
+patches/   0001..0014, applied in order to the clean xnu-12377.121.6 tag
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -43,17 +43,17 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0011 | `osfmk/arm/pmap/pmap.c` | removes PPL-only calls from the non-monitor path |
 | 0012 | `config/MASTER`, `osfmk/conf/files.arm64` | excludes Apple AMCC sources absent from public XNU and Qualcomm hardware |
 | 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
+| 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
 
-The latest build reached final linking but failed with 241 groups of undefined
-symbols because generic ARM64 XNU sources were not selected for SWEET. Patch
-0009 adds those selectors to `KERNEL_BASE` for SWEET. Run 44377642599 then exposed
-two Apple-only headers missing from the public XNU drop; 0010 gates those paths
-for non-Apple SWEET hardware. Patch 0011 fixes generic pmap calls that still expected monitor-only PPL
-functions. Run 44394599033 then reached source selection but failed because
-four Apple AMCC implementations are absent from the open source drop; patch
-0012 makes those files Apple-only. Run 44400572741 then linked and reported five
-remaining symbols; 0013 supplies the missing non-Apple runtime paths. See
-`patches/README.md` for details.
+Run `44400572741` linked down to five missing symbols; patch 0013 adds the
+non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
+in the Apple export checks; the acceptance report counted 10 non-hint PAC
+instructions and its Mach-O check did not recognize the little-endian header.
+Patch 0014 excludes the Apple/KDK export inputs from SWEET and supplies an empty
+private export list. Run `44414383264` then failed while generating
+`Private.symbolset.plist` because that list had no input file; patch 0014 now
+includes `Private.SWEET.exports`. See [`patches/README.md`](patches/README.md)
+for the build history.
 
 Details, rationale and the exact compiler errors that produced 0005/0006 are
 in [`patches/README.md`](patches/README.md).
@@ -83,9 +83,9 @@ The workflow is manual + on push to `patches/**`. It:
 
 ## Status (2026-11-19)
 
-- [перевірено] Run `44406649506`: build failed in `check_all_exports` / `Private.symbolset`; a kernel artifact was produced, but acceptance reported 10 non-hint PAC instructions and the Mach-O parser did not recognize its little-endian header.
-- [перевірено] Run `44414383264`: build failed generating `Private.symbolset.plist`; no kernel artifact was collected.
-- [перевірено] Run `44428555503`: XNU build step was still running at the latest status check.
+- Run `44406649506`: build failed in `check_all_exports` / `Private.symbolset`; a kernel artifact was produced. The acceptance report counted 10 non-hint PAC instructions and did not recognize the little-endian Mach-O header.
+- Run `44414383264`: build failed generating `Private.symbolset.plist`; no kernel artifact was collected.
+- Run `44428555503`: XNU build was in progress at the last status check.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 
