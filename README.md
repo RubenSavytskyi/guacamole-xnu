@@ -81,15 +81,11 @@ The workflow is manual + on push to `patches/**`. It:
 | d | zero non-hint PAC instructions in the kernel (`ci/pac_count.py`), otherwise the list of functions |
 | e | the complete list of compile errors, from a `-k` run |
 
-## Status (2026-11-18)
+## Status (2026-11-19)
 
-- **No kernel has been produced yet.** Two compile errors from the first real
-  build (run `44195811557`) are fixed by 0005/0006; the next run decides
-  whether the list is exhausted.
-- `ci/dsc_hist.py` has been run against the real macOS 26.5 dyld shared cache:
-  3,529 images, 2,860,830,300 bytes of `__text`, 23,086,877 non-hint PAC
-  instructions + 11,090,781 hint ones. Only 22 `LDRAA` exist, so a 1:1 rewrite
-  covers almost all of them. Result: `ci/dsc-26.5.json`.
+- [перевірено] Run `44406649506`: build failed in `check_all_exports` / `Private.symbolset`; a kernel artifact was produced, but acceptance reported 10 non-hint PAC instructions and the Mach-O parser did not recognize its little-endian header.
+- [перевірено] Run `44414383264`: build failed generating `Private.symbolset.plist`; no kernel artifact was collected.
+- [перевірено] Run `44428555503`: XNU build step was still running at the latest status check.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 
