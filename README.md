@@ -84,11 +84,11 @@ The workflow is manual + on push to `patches/**`. It:
 
 ## Status (2026-11-19)
 
-- Run `44431047165`: XNU build succeeded and produced a 24,879,760-byte kernel. CI reported `lipo -info: arm64`. Its PAC report initially showed 10 false positives because `ci/pac_count.py` matched TCR/TTBR system-register accesses as PAC-key registers. Re-analysis with the corrected classifier reports 0 non-hint PAC instructions.
-- Run `44431047165`: build log shows `libfirehose_kernel` targeted `x86_64 arm64`; no kernel link command references `liblibfirehose_kernel.a`.
+- Run `44521215540`: workflow and acceptance checks passed. Kernel artifact: 24,879,760 bytes, `arm64`, SHA-256 `a32b89d60bed7deccf4d465be34340fda67ee68cfe0206e0dcc47e49dd9ff8d1`; PAC count: 0 non-hint instructions.
+- Run `44521215540`: `libfirehose_kernel` was built for `x86_64 arm64`; no `arm64e` target or kernel link-command reference to `liblibfirehose_kernel.a` was present.
+- Run `44520878510`: unit-test failure exposed that the DSC fast counter still used the old PAC-key match; fixed in `ci/dsc_hist.py` and confirmed by the successful run above.
 - Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`.
-- Run `44520878510`: unit tests failed because the DSC fast counter had not yet adopted the corrected PAC-key register match; the fast counter is now updated.
-- The workflow now runs on `ci/**` changes and fails if an acceptance criterion fails.
+- CI now gates the artifact on all acceptance criteria and runs when CI or patch-directory files change.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 
