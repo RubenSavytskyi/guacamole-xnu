@@ -150,5 +150,3 @@ No ADT (`.adt`/`.dtb`) or wrapped payload was found in the workspace during
 this audit. The raw kernel therefore has not yet been prepared for a device
 boot. `fastboot boot` remains a user-run hardware check after the payload and
 matching ADT are available.
-
-
