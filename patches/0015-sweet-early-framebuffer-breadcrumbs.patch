@@ -1,0 +1,75 @@
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -42,6 +42,29 @@
+ #include <arm/pmap.h>
+ #endif /* __ARM_KERNEL_PROTECT__ */
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/* Early framebuffer breadcrumbs. The shim enters XNU with EL1 MMU/cache off. */
++.macro SWEET_FB_MARK xoff, low, high
++    movz    x9, #0x9c00, lsl #16
++    add     x9, x9, #\xoff
++    movz    w10, #\low
++    movk    w10, #\high, lsl #16
++    mov     x11, #32
++    mov     x13, #5760
++    sub     x13, x13, #128
++.Lsweet_fb_row\@:
++    mov     x12, #32
++.Lsweet_fb_col\@:
++    str     w10, [x9], #4
++    subs    x12, x12, #1
++    b.ne    .Lsweet_fb_col\@
++    add     x9, x9, x13
++    subs    x11, x11, #1
++    b.ne    .Lsweet_fb_row\@
++.endm
++#endif
++
++
+ 
+ 
+ .macro MSR_VBAR_EL1_X0
+@@ -232,6 +255,9 @@
+ 	.globl EXT(_start)
+ LEXT(_start)
+ 	ARM64_PROLOG
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 0, 0xff00, 0xff00 /* green: _start reached */
++#endif
+ 	b	EXT(start_first_cpu)
+ 
+ 
+@@ -468,6 +494,9 @@
+ 	.align 2
+ 	.globl EXT(start_first_cpu)
+ LEXT(start_first_cpu)
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 128, 0x00ff, 0xff00 /* blue: first CPU bootstrap reached */
++#endif
+ 
+ 	// Unlock the core for debugging
+ 	msr		OSLAR_EL1, xzr
+@@ -624,7 +653,9 @@
+ 
+ 	/* Ensure TTEs are visible */
+ 	dsb		ish
+-
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 256, 0xff00, 0xffff /* yellow: bootstrap tables complete */
++#endif
+ 
+ 	b		common_start
+ 
+@@ -750,6 +781,9 @@
+ #endif /* HAS_APPLE_PAC */
+ 
+ 	// Enable caches, MMU, ROP and JOP
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 384, 0xffff, 0xffff /* white: immediately before MMU enable */
++#endif
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+ 	isb		sy
+
