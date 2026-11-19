@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0014 verified on the clean tag; 0015 is a diagnostic draft
+patches/   0001..0015 applied in order; 0015 adds early XNU framebuffer diagnostics
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -44,7 +44,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0012 | `config/MASTER`, `osfmk/conf/files.arm64` | excludes Apple AMCC sources absent from public XNU and Qualcomm hardware |
 | 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
 | 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
-| 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer markers at early XNU checkpoints; apply-checked on run 44521215540 source, build pending |
+| 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer markers at `_start`, `start_first_cpu`, after bootstrap table setup, and before MMU enable; compiled in run 17 |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -88,9 +88,10 @@ The workflow is manual + on push to `patches/**`. It:
 - Run `44521215540`: workflow and acceptance checks passed. Kernel artifact: 24,879,760 bytes, `arm64`, SHA-256 `a32b89d60bed7deccf4d465be34340fda67ee68cfe0206e0dcc47e49dd9ff8d1`; PAC count: 0 non-hint instructions.
 - Run `44521215540`: `libfirehose_kernel` was built for `x86_64 arm64`; no `arm64e` target or kernel link-command reference to `liblibfirehose_kernel.a` was present.
 - Run `44520878510`: unit-test failure exposed that the DSC fast counter still used the old PAC-key match; fixed in `ci/dsc_hist.py` and confirmed by the successful run above.
-- Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`.
-- Run `44521215540` device test: shim printed `JUMP`; display stayed red, so XNU execution past the handoff is unconfirmed.
-- Patch `0015` passes `git apply --check` against `start.s` from run `44521215540` buildtree. Clean-tag application and an XNU build remain pending; the tested image does not include `0015`.
+- Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`; run 17 built the kernel with patch `0015` applied.
+- Run `44546255336` (run 17): kernel artifact is 24,880,032 bytes, `arm64`, SHA-256 `19a14fe5d19ed0b1a6782924f073a08183ea64ae47395b3c5ff6574deada0bb2`; all acceptance criteria passed and PAC count is 0.
+- Run `44521215540` device test: shim printed `JUMP`; display stayed red, so XNU execution past the handoff is unconfirmed. The tested image did not contain patch `0015`.
+- Run 17 produces a kernel with early framebuffer checkpoints; no device test of that kernel has been done.
 - CI gates the artifact on all acceptance criteria and runs when CI or patch-directory files change.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
