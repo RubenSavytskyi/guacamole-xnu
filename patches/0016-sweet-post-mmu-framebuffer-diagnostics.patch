@@ -1,0 +1,48 @@
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index a232079..e4466ef 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -651,6 +651,23 @@ Lkernelcache_base_found:
+ 	lsr		x5,  x24, #(ARM_TT_L2_SHIFT)
+ 	create_bootstrap_mapping x14, x15, x5, x3, x2, x9, x10, x11, x12, x13
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	/* Map the 32MB L2 block containing the shim GOP framebuffer in V=P. */
++	movz	x6, #0x9c00, lsl #16
++	lsr	x7, x6, #(ARM_TT_L1_SHIFT)
++	add	x8, x25, x7, lsl #3
++	ldr	x8, [x8]
++	and	x8, x8, #(ARM_TTE_TABLE_MASK)
++	and	x7, x6, #(ARM_TT_L2_INDEX_MASK)
++	lsr	x7, x7, #(ARM_TT_L2_SHIFT)
++	add	x8, x8, x7, lsl #3
++	movz	x9, #0x9c00, lsl #16
++	movz	x10, #0x0605
++	orr	x9, x9, x10
++	movk	x9, #0x40, lsl #48
++	str	x9, [x8]
++#endif
++
+ 	/* Ensure TTEs are visible */
+ 	dsb		ish
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+@@ -787,12 +804,18 @@ common_start:
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+ 	isb		sy
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 512, 0x00ff, 0xffff /* magenta: instruction after MMU enable */
++#endif
+ 
+ #if !VMAPPLE
+ 	MOV64	x1, SCTLR_EL1_DEFAULT
+ 	cmp		x0, x1
+ 	bne		.
+ #endif /* !VMAPPLE */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_FB_MARK 640, 0xffff, 0x00ff /* cyan: SCTLR readback check passed */
++#endif
+ 
+ #if (!CONFIG_KERNEL_INTEGRITY || (CONFIG_KERNEL_INTEGRITY && !defined(KERNEL_INTEGRITY_WT)))
+ 	/* Watchtower
+
