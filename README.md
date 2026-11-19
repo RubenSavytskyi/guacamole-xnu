@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0014, applied in order to the clean xnu-12377.121.6 tag
+patches/   0001..0014 verified on the clean tag; 0015 is a diagnostic draft
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -44,6 +44,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0012 | `config/MASTER`, `osfmk/conf/files.arm64` | excludes Apple AMCC sources absent from public XNU and Qualcomm hardware |
 | 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
 | 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
+| 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer markers at early XNU checkpoints; apply-checked on run 44521215540 source, build pending |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -88,7 +89,9 @@ The workflow is manual + on push to `patches/**`. It:
 - Run `44521215540`: `libfirehose_kernel` was built for `x86_64 arm64`; no `arm64e` target or kernel link-command reference to `liblibfirehose_kernel.a` was present.
 - Run `44520878510`: unit-test failure exposed that the DSC fast counter still used the old PAC-key match; fixed in `ci/dsc_hist.py` and confirmed by the successful run above.
 - Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`.
-- CI now gates the artifact on all acceptance criteria and runs when CI or patch-directory files change.
+- Run `44521215540` device test: shim printed `JUMP`; display stayed red, so XNU execution past the handoff is unconfirmed.
+- Patch `0015` passes `git apply --check` against `start.s` from run `44521215540` buildtree. Clean-tag application and an XNU build remain pending; the tested image does not include `0015`.
+- CI gates the artifact on all acceptance criteria and runs when CI or patch-directory files change.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 
