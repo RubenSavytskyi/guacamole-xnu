@@ -197,6 +197,14 @@ def make_counter():
             name = "hint:" + HINTS[word]
             counts[name] = counts.get(name, 0) + 1
             return
+        # PAC-key MRS/MSR share the CRn=2 prefix with ordinary TCR/TTBR
+        # accesses. Only CRm=1..3 encodes the PAC key registers.
+        mrs_pac_key = (word & 0xFFFFF000) == 0xD5382000 and ((word >> 8) & 0xF) in (1, 2, 3)
+        msr_pac_key = (word & 0xFFFFF000) == 0xD5182000 and ((word >> 8) & 0xF) in (1, 2, 3)
+        if mrs_pac_key or msr_pac_key:
+            name = "mrs_pac_key" if mrs_pac_key else "msr_pac_key"
+            counts[name] = counts.get(name, 0) + 1
+            return
         top = word >> 16
         if top in prefixes:
             for mask, value, name in rules:

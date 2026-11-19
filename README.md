@@ -87,7 +87,8 @@ The workflow is manual + on push to `patches/**`. It:
 - Run `44431047165`: XNU build succeeded and produced a 24,879,760-byte kernel. CI reported `lipo -info: arm64`. Its PAC report initially showed 10 false positives because `ci/pac_count.py` matched TCR/TTBR system-register accesses as PAC-key registers. Re-analysis with the corrected classifier reports 0 non-hint PAC instructions.
 - Run `44431047165`: build log shows `libfirehose_kernel` targeted `x86_64 arm64`; no kernel link command references `liblibfirehose_kernel.a`.
 - Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`.
-- The workflow now runs on `ci/**` changes and fails if an acceptance criterion fails. A fresh CI run is pending the PAC-counter fix.
+- Run `44520878510`: unit tests failed because the DSC fast counter had not yet adopted the corrected PAC-key register match; the fast counter is now updated.
+- The workflow now runs on `ci/**` changes and fails if an acceptance criterion fails.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 
