@@ -2,7 +2,7 @@
 
 Patches and CI for building **XNU 12377.121.6** for macOS Tahoe (26.5) on the
 OnePlus 7 Pro (`guacamole`, Qualcomm SM8150 / Snapdragon 855) as **plain
-arm64** — no pointer authentication, no Apple SoC headers.
+arm64** â€” no pointer authentication, no Apple SoC headers.
 
 This repository contains only the kernel-side work: machine-config patches,
 the build workflow, and the PAC/DSC analysis tools used to check the result.
@@ -44,7 +44,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0012 | `config/MASTER`, `osfmk/conf/files.arm64` | excludes Apple AMCC sources absent from public XNU and Qualcomm hardware |
 | 0013 | arm64 runtime sources | supplies non-Apple fallbacks and skips arm64e-only Tightbeam startup on SWEET |
 | 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
-| 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer markers at `_start`, `start_first_cpu`, after bootstrap table setup, and before MMU enable; compiled in run 17 |
+| 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer blocks at `_start`, `start_first_cpu`, after bootstrap table setup, and before MMU enable; compiled in run 17 |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -85,14 +85,70 @@ The workflow is manual + on push to `patches/**`. It:
 
 ## Status (2026-11-19)
 
-- Run `44521215540`: workflow and acceptance checks passed. Kernel artifact: 24,879,760 bytes, `arm64`, SHA-256 `a32b89d60bed7deccf4d465be34340fda67ee68cfe0206e0dcc47e49dd9ff8d1`; PAC count: 0 non-hint instructions.
+- Run `44521215540`: kernel artifact is 24,879,760 bytes, `arm64`, SHA-256 `a32b89d60bed7deccf4d465be34340fda67ee68cfe0206e0dcc47e49dd9ff8d1`; PAC count is 0 non-hint instructions.
 - Run `44521215540`: `libfirehose_kernel` was built for `x86_64 arm64`; no `arm64e` target or kernel link-command reference to `liblibfirehose_kernel.a` was present.
 - Run `44520878510`: unit-test failure exposed that the DSC fast counter still used the old PAC-key match; fixed in `ci/dsc_hist.py` and confirmed by the successful run above.
 - Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`; run 17 built the kernel with patch `0015` applied.
 - Run `44546255336` (run 17): kernel artifact is 24,880,032 bytes, `arm64`, SHA-256 `19a14fe5d19ed0b1a6782924f073a08183ea64ae47395b3c5ff6574deada0bb2`; all acceptance criteria passed and PAC count is 0.
-- Run `44521215540` device test: shim printed `JUMP`; display stayed red, so XNU execution past the handoff is unconfirmed. The tested image did not contain patch `0015`.
-- Run 17 produces a kernel with early framebuffer checkpoints; no device test of that kernel has been done.
-- CI gates the artifact on all acceptance criteria and runs when CI or patch-directory files change.
+- Run `44546255336` produced four early framebuffer checkpoints. The new kernel has not been device-tested.
+- Run `44521215540` device test: shim printed `JUMP`; display stayed red. XNU execution past the handoff was not confirmed. That image did not contain patch `0015`.
+- The run 17 kernel was wrapped locally as `tahoe-firstboot-0015.img` with the existing D22 ADT and shim. It has not been tested on-device.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
+
+## iOS 27 P3 comparison and shim format audit
+
+These are source-level audits only. No device boot was performed as part of
+these checks.
+
+### iOS 27 platform diffs
+
+Compared the public `coreycusick/ios-guacamole` `ios27` XNU diffs with the
+clean XNU base plus SWEET patches `0001..0014`. The diffs are incremental
+changes against that project's SWEET/iOS 27 platform tree; they are not a
+standalone patch series for clean XNU. The checked paths below are absent from
+our current tree, so the diffs cannot be applied directly here. This is a
+missing-base dependency, not evidence that the corresponding implementation
+conflicts with a same-purpose patch in `0001..0014`.
+
+| Area | iOS 27 source found | Directly applies to `0001..0014` | Relevant local patch/conflict |
+|---|---|---|---|
+| UART | No dedicated UART bring-up diff; `fb-hwscale` also changes serial-console code | No; its SWEET platform context is absent | None identified |
+| Framebuffer | `xnu12377-fb-*.diff`, against `SweetFramebuffer.cpp` | No; `SweetFramebuffer.cpp` is absent | None identified |
+| UFS | `xnu12377-disk0-nub.diff`; creates a disk0 media nub, expects the platform UFS driver | No; required SWEET files/context are absent | None identified |
+| Touch | No touch-specific XNU diff found in `xnu/ios27` | N/A | None identified |
+| PMIC | No PMIC-specific diff found; `psci-power.diff` concerns RTC/power startup | No; its SWEET RTC files/context are absent | None identified |
+| Battery | No battery-specific XNU diff found | N/A | None identified |
+| GPU | `xnu12377-gpu-*.diff`, against `SweetAccelerator.cpp` / `sweet_gpu.c` | No; those platform files are absent | None identified |
+
+The iOS 27 repository has no root `LICENSE` file and its GitHub license
+endpoint reports no detected license. Preserve Corey Cusick's attribution for
+the audited diffs and check the origin/license of any copied component before
+porting it; this audit does not establish a blanket license for the diff set.
+The iOS 27 P3 tree is a useful same-device platform reference, but these
+incremental diffs should not be bulk-applied to Tahoe or treated as a drop-in
+replacement for the approximately 240-patch 8796 port.
+
+### Mach-O to shim payload
+
+The input was the artifact from run `44521215540`, parsed with
+`ios-guacamole/tools/mkpayload.py`'s `parse_macho` and compared with its
+`build()` implementation. `otool` is not installed in the Windows audit
+environment, so this is a parser-based inspection rather than an `otool -l`
+transcript.
+
+| Check | Kernel result | Shim requirement/result |
+|---|---|---|
+| Mach-O | 64-bit little-endian, `MH_EXECUTE`, CPU type `arm64` (`0x0100000c`), subtype 0 | Parser accepts 64-bit Mach-O; no arm64e-only requirement |
+| Entry | `LC_UNIXTHREAD` PC `0xfffffe0007572488`, inside `__TEXT_EXEC` | Used as `entry_va` in the payload header |
+| Segments | 19 `LC_SEGMENT_64` commands; first is `__TEXT`, `fileoff=0` | Satisfies `build()`'s first-text-segment check |
+| 16 KB granule | Non-empty segments have 16 KB-aligned `vmaddr`, `vmsize` and `fileoff` | Compatible with the shim's 16 KB page constant; file byte count need not be page-aligned (`__LINKEDIT` is not) |
+| Chained fixups | No `LC_DYLD_CHAINED_FIXUPS` command | `apply_chained_fixups()` returns zero; no fixup rewrite is needed |
+| Payload | The artifact starts with Mach-O magic, not `SWEETXNU` | It is a raw kernel; `mkpayload.py` must wrap it with a matching ADT before the shim can load it |
+
+No ADT (`.adt`/`.dtb`) or wrapped payload was found in the workspace during
+this audit. The raw kernel therefore has not yet been prepared for a device
+boot. `fastboot boot` remains a user-run hardware check after the payload and
+matching ADT are available.
+
 
