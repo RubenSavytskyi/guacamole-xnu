@@ -1,0 +1,64 @@
+diff --git a/osfmk/console/video_console.c b/osfmk/console/video_console.c
+index 648cb70..acb51a3 100644
+--- a/osfmk/console/video_console.c
++++ b/osfmk/console/video_console.c
+@@ -1106,6 +1106,11 @@ static void
+ gc_scroll_up(int num, unsigned int top, unsigned int bottom)
+ {
+ 	if (!gc_buffer_size) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		/* The console was enabled before the VM was up, so there is no
++		 * scrollback buffer: scroll the screen itself. */
++		gc_ops.scroll_up(num, top, bottom);
++#endif
+ 		return;
+ 	}
+ 
+@@ -2860,7 +2865,7 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 			gc_acquired = TRUE;
+ 		} else {
+ 			if (makeMapping) {
+-#if HAS_UCNORMAL_MEM || APPLEVIRTUALPLATFORM
++#if HAS_UCNORMAL_MEM || APPLEVIRTUALPLATFORM || defined(ARM64_BOARD_CONFIG_SWEET)
+ 				/*
+ 				 * Framebuffers would normally use VM_WIMG_RT, which
+ 				 * io_map doesn't support.  However this buffer is set up
+@@ -2935,6 +2940,11 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 	case kPEGraphicsMode:
+ 		gc_graphics_boot = TRUE;
+ 		gc_desire_text = FALSE;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		/* PE_create_console follows this with kPETextScreen, which needs
++		 * the screen to be marked as acquired. */
++		gc_acquired = TRUE;
++#endif
+ 		break;
+ 
+ 	case kPETextMode:
+diff --git a/pexpert/arm/pe_init.c b/pexpert/arm/pe_init.c
+index db1c4a0..0c5fd12 100644
+--- a/pexpert/arm/pe_init.c
++++ b/pexpert/arm/pe_init.c
+@@ -553,7 +553,22 @@ PE_create_console(void)
+ 	check_for_panic_log();
+ 
+ 	if (PE_state.video.v_display) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		/*
++		 * sweet: the shim can only pass a physical framebuffer address,
++		 * because no kernel virtual mapping exists when it jumps. The low
++		 * bit of v_baseAddr is the booter's "physical address" flag, and it
++		 * makes initialize_screen map the buffer into the kernel. With no
++		 * debug UART the video console is the only way to read the kernel
++		 * log, so enable it here.
++		 */
++		PE_Video fb = PE_state.video;
++		fb.v_baseAddr |= 1;
++		PE_initialize_console(&fb, kPEGraphicsMode);
++		initialize_screen(NULL, kPETextScreen);
++#else
+ 		PE_initialize_console(&PE_state.video, kPEGraphicsMode);
++#endif
+ 	} else {
+ 		PE_initialize_console(&PE_state.video, kPETextMode);
+ 	}
