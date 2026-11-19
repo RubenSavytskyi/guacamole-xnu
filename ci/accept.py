@@ -11,9 +11,13 @@ carries the number of matching lines and up to three samples.
   d) zero non-hint PAC instructions in function bodies (ci/pac_count.py)
   e) the full list of compiler errors, deduplicated
   f) no linker or make failure, and a kernel was produced
+  g) every patch in patches/ was applied (not "Skipping patch", not missing)
+  h) the added lines of every patch are present in the source that the
+     artifact ships (buildtree.tgz), when --tree-tgz is given
 
 Usage:
   python3 ci/accept.py --log build.log [--kernel kernel.development.sweet]
+                       [--tree-tgz buildtree.tgz] [--patches-dir DIR]
                        [--json out.json] [--samples 3]
 
 Exit code: 0 only if every criterion that could be evaluated passed.
@@ -101,6 +105,8 @@ def scan_log(path, samples):
     other_errors = {}    # git apply / ld / misc -> count
     link_errors = {}
     make_failures = []
+    applied_patches = {}    # patch basename -> path from the log
+    skipped_patches = {}    # patch basename -> why DXB skipped it
     bytes_read = 0
 
     with open(path, "rb") as f:
@@ -146,6 +152,19 @@ def scan_log(path, samples):
             if "***" in line and ("Error " in line or "not remade" in line):
                 if len(make_failures) < 10:
                     make_failures.append(line.strip()[:300])
+            # DXB says "Applying patch: <path>" or
+            # "Skipping patch <path> (reason): error: patch failed: ...".
+            # The prefix is wrapped in ANSI colours, so only the name matters.
+            m = re.search(r"Applying patch: (.+?)\s*$", line)
+            if m:
+                name = _patch_name(m.group(1))
+                if name:
+                    applied_patches[name] = m.group(1)
+            m = re.search(r"Skipping patch (.+?) \(", line)
+            if m:
+                name = _patch_name(m.group(1))
+                if name:
+                    skipped_patches[name] = line.strip()[:300]
 
     return {
         "log_bytes": bytes_read,
@@ -156,7 +175,15 @@ def scan_log(path, samples):
         "other_errors": other_errors,
         "link_errors": link_errors,
         "make_failures": make_failures,
+        "applied_patches": applied_patches,
+        "skipped_patches": skipped_patches,
     }
+
+
+def _patch_name(path):
+    """`/a/b/0016-foo.patch` -> `0016-foo.patch`; None for DXB's own patches."""
+    base = path.strip().rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    return base if re.match(r"^\d{4}-.*\.patch$", base) else None
 
 
 def criterion_a(flags):
@@ -247,10 +274,116 @@ def criterion_f(scan, kernel):
     return "pass", "kernel artifact produced with no linker or make failures"
 
 
+def expected_patches(patches_dir):
+    """Patch files of this repository, in application order."""
+    if not patches_dir or not os.path.isdir(patches_dir):
+        return []
+    return sorted(n for n in os.listdir(patches_dir)
+                  if re.match(r"^\d{4}-.*\.patch$", n))
+
+
+def criterion_g(scan, patches_dir):
+    """Every patch of ours must show up as applied, never as skipped.
+
+    Run 18 was "success" while 0016 was skipped, so the artifact silently
+    lacked the post-MMU markers. A skipped patch has to be a red criterion.
+    """
+    expected = expected_patches(patches_dir)
+    if not expected:
+        return "skipped", "no patches found in %s" % (patches_dir or "?")
+    applied = scan["applied_patches"]
+    skipped = scan["skipped_patches"]
+    missing = [n for n in expected if n not in applied]
+    bad = [n for n in expected if n in skipped]
+    if not missing and not bad:
+        return "pass", "all %d patches applied: %s .. %s" % (
+            len(expected), expected[0], expected[-1])
+    parts = []
+    for n in bad + [n for n in missing if n not in bad]:
+        if n in skipped:
+            parts.append("%s SKIPPED: %s" % (n, skipped[n]))
+        else:
+            parts.append("%s: no 'Applying patch' line in the log" % n)
+    return "fail", "\n  ".join(parts)
+
+
+ADDED_LINE = re.compile(r"^\+(?!\+\+)")
+
+
+def patch_added_lines(patch_path):
+    """{repo-relative target file: [added lines worth checking]}."""
+    files = {}
+    target = None
+    with open(patch_path, "rb") as f:
+        for raw in f:
+            line = raw.decode("utf-8", "replace").rstrip("\r\n").lstrip("\ufeff")
+            if line.startswith("+++ "):
+                name = line[4:].split("\t")[0].strip()
+                target = name[2:] if name.startswith("b/") else name
+                if target == "/dev/null":
+                    target = None
+                continue
+            if target and ADDED_LINE.match(line):
+                body = line[1:].strip()
+                if len(body) >= 12:   # long enough to be evidence, not `}`
+                    files.setdefault(target, []).append(body)
+    return files
+
+
+def criterion_h(patches_dir, tree_tgz):
+    """The patched source inside the artifact really contains our changes.
+
+    build.log says the patch was applied; this says the tree that produced
+    the kernel carries it. Skipped entirely without --tree-tgz.
+    """
+    if not tree_tgz:
+        return "skipped", "no --tree-tgz given"
+    expected = expected_patches(patches_dir)
+    if not expected:
+        return "skipped", "no patches found in %s" % (patches_dir or "?")
+    import tarfile
+    problems = []
+    checked_files = 0
+    checked_lines = 0
+    with tarfile.open(tree_tgz, "r:gz") as tar:
+        for name in expected:
+            files = patch_added_lines(os.path.join(patches_dir, name))
+            for target, lines in files.items():
+                member = "xnu/" + target
+                try:
+                    fh = tar.extractfile(member)
+                except KeyError:
+                    problems.append("%s: %s missing from the tree"
+                                    % (name, target))
+                    continue
+                if fh is None:
+                    problems.append("%s: %s is not a file" % (name, target))
+                    continue
+                text = fh.read().decode("utf-8", "replace")
+                checked_files += 1
+                for body in lines:
+                    checked_lines += 1
+                    if body not in text:
+                        problems.append("%s: %s lacks %r"
+                                        % (name, target, body[:60]))
+    if problems:
+        return "fail", "%d patch line(s) absent:\n  %s" % (
+            len(problems), "\n  ".join(problems[:12]))
+    if not checked_lines:
+        return "skipped", "no added line long enough to verify"
+    return "pass", ("%d added line(s) of %d patches present in %d file(s) of %s"
+                    % (checked_lines, len(expected), checked_files,
+                       os.path.basename(tree_tgz)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", help="build.log (make + clang output)")
     ap.add_argument("--kernel", help="kernel.development.sweet")
+    ap.add_argument("--tree-tgz", help="buildtree.tgz from the CI artifact")
+    ap.add_argument("--patches-dir",
+                    default=os.path.join(HERE, os.pardir, "patches"),
+                    help="directory with NNNN-*.patch (default: ../patches)")
     ap.add_argument("--json", help="write the full report here")
     ap.add_argument("--samples", type=int, default=3)
     args = ap.parse_args()
@@ -259,7 +392,8 @@ def main():
                                      for t in FLAG_TOKENS},
             "pac_mentions": 0, "pac_definitions": [],
             "errors": {}, "other_errors": {}, "link_errors": {},
-            "make_failures": []}
+            "make_failures": [], "applied_patches": {},
+            "skipped_patches": {}}
     if args.log:
         scan = scan_log(args.log, args.samples)
 
@@ -272,8 +406,11 @@ def main():
         "e": criterion_e(scan) if args.log else ("skipped", "no --log given"),
         "f": criterion_f(scan, args.kernel) if args.log else (
             "skipped", "no --log given"),
+        "g": criterion_g(scan, args.patches_dir) if args.log else (
+            "skipped", "no --log given"),
+        "h": criterion_h(args.patches_dir, args.tree_tgz),
     }
-    order = ["a", "b", "c", "d", "e", "f"]
+    order = ["a", "b", "c", "d", "e", "f", "g", "h"]
     statuses = [verdicts[k][0] for k in order]
     if "fail" in statuses:
         code = 1
@@ -282,7 +419,7 @@ def main():
     else:
         code = 0
 
-    print("acceptance criteria (a)-(f)")
+    print("acceptance criteria (a)-(h)")
     if args.log:
         print("log: %s (%.1f MB)" % (args.log, scan["log_bytes"] / 1e6))
     if args.kernel:
@@ -309,6 +446,8 @@ def main():
             "non_clang_errors": scan["other_errors"],
             "link_errors": scan["link_errors"],
             "make_failures": scan["make_failures"],
+            "applied_patches": sorted(scan["applied_patches"]),
+            "skipped_patches": scan["skipped_patches"],
         }
         with open(args.json, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, sort_keys=True)

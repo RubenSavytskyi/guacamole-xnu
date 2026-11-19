@@ -121,15 +121,18 @@ jobs:
           mkdir -p sdk-kernel-platform
           cp -R "$SDK/System/Library/Frameworks/Kernel.framework/Versions/A/PrivateHeaders/platform" sdk-kernel-platform/ || true
           cp dxb/build.log out/build.log 2>/dev/null || true
-          if [ -f out/build.log ]; then
-            python3 ci/accept.py --log out/build.log ${KERNEL:+--kernel "out/$(basename "$KERNEL")"} \
-              --json out/criteria.json
-          fi
           tar czf out/buildtree.tgz \
             --exclude='*.o' --exclude='*.cpo' --exclude='*.a' --exclude='*.dSYM' --exclude='*.unstripped' \
             --exclude='kernel.development.*' --exclude='.git' \
             -C dxb build/xnu.obj fakeroot/usr/local/include xnu build.log \
             -C .. sdk-kernel-platform 2>/dev/null || true
+          # Criteria last: (g) needs the log, (h) needs the patched source in
+          # buildtree.tgz. Without (g) run 18 was "success" while 0016 was
+          # skipped and the kernel lacked the post-MMU markers.
+          if [ -f out/build.log ]; then
+            python3 ci/accept.py --log out/build.log ${KERNEL:+--kernel "out/$(basename "$KERNEL")"} \
+              --tree-tgz out/buildtree.tgz --json out/criteria.json
+          fi
           ls -la out
           if [ -z "$KERNEL" ]; then
             echo "::error::no kernel.development.* was produced"

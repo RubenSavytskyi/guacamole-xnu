@@ -27,6 +27,8 @@ def macho(cputype, cpusubtype, ncmds=0):
 class AcceptTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix="accept-")
+        self.patches = os.path.join(self.dir, "patches")
+        os.makedirs(self.patches)
 
     def path(self, name):
         return os.path.join(self.dir, name)
@@ -37,12 +39,22 @@ class AcceptTest(unittest.TestCase):
             f.write(data)
         return p
 
-    def run_accept(self, log=None, kernel=None):
-        cmd = [sys.executable, ACCEPT]
+    def write_patch(self, name, target, added):
+        body = ["diff --git a/%s b/%s" % (target, target),
+                "--- a/%s" % target,
+                "+++ b/%s" % target,
+                "@@ -1,1 +1,2 @@"]
+        body += ["+" + line for line in added]
+        return self.write(os.path.join("patches", name), "\n".join(body) + "\n")
+
+    def run_accept(self, log=None, kernel=None, tree=None):
+        cmd = [sys.executable, ACCEPT, "--patches-dir", self.patches]
         if log:
             cmd += ["--log", log]
         if kernel:
             cmd += ["--kernel", kernel]
+        if tree:
+            cmd += ["--tree-tgz", tree]
         p = subprocess.run(cmd, capture_output=True, text=True)
         return p.returncode, p.stdout + p.stderr
 
@@ -191,6 +203,90 @@ class AcceptTest(unittest.TestCase):
         code, out = self.run_accept(log=log)
         self.assertEqual(self.status(out, "f"), "SKIPPED")
         self.assertEqual(code, 3)
+
+    # (g) -------------------------------------------------------------
+    def test_g_all_patches_applied_pass(self):
+        self.write_patch("0001-a.patch", "osfmk/arm64/start.s", ["\tmov x0, #1"])
+        self.write_patch("0002-b.patch", "osfmk/arm64/proc_reg.h", ["#define X 1"])
+        log = self.write(
+            "g.log",
+            "\x1b[35;01m ? \x1b[39;49;00mApplying patch:"
+            " /w/dxb/patches/26.0/0001-a.patch\n"
+            "\x1b[35;01m ? \x1b[39;49;00mApplying patch:"
+            " /w/dxb/patches/26.0/0002-b.patch\n")
+        code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "g"), "PASS")
+        self.assertIn("all 2 patches applied", out)
+
+    def test_g_skipped_patch_fails_like_run18(self):
+        self.write_patch("0016-c.patch", "osfmk/arm64/start.s",
+                         ["\tSWEET_FB_MARK 512, 0x00ff, 0xffff"])
+        log = self.write(
+            "g.log",
+            "\x1b[33;01m[warning] \x1b[39;49;00mSkipping patch"
+            " /w/dxb/patches/26.0/0016-c.patch (already upstream, previously"
+            " applied, or malformed): error: patch failed: osfmk/arm64/start.s:651\n")
+        code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "g"), "FAIL")
+        self.assertIn("0016-c.patch SKIPPED", out)
+        self.assertEqual(code, 1)
+
+    def test_g_patch_absent_from_log_fails(self):
+        self.write_patch("0003-d.patch", "osfmk/arm64/start.s", ["\tnop"])
+        log = self.write("g.log",
+                         "Applying patch: /w/dxb/patches/26.0/0001-a.patch\n")
+        _code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "g"), "FAIL")
+        self.assertIn("no 'Applying patch' line", out)
+
+    def test_g_ignores_patches_of_the_build_driver(self):
+        self.write_patch("0001-a.patch", "osfmk/arm64/start.s", ["\tnop"])
+        log = self.write(
+            "g.log",
+            "Applying patch: /w/dxb/patches/26.0/0001-a.patch\n"
+            "[warning] Skipping patch /w/dxb/patches/26.0/link_kdk.patch"
+            " (already upstream, previously applied, or malformed): error:"
+            " patch failed: makedefs/MakeInc.def:1095\n")
+        _code, out = self.run_accept(log=log)
+        self.assertEqual(self.status(out, "g"), "PASS")
+
+    # (h) -------------------------------------------------------------
+    def make_tree(self, files):
+        import io
+        import tarfile
+        p = self.path("buildtree.tgz")
+        with tarfile.open(p, "w:gz") as tar:
+            for name, text in files.items():
+                data = text.encode()
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+        return p
+
+    def test_h_added_lines_present_in_tree(self):
+        self.write_patch("0016-c.patch", "osfmk/arm64/start.s",
+                         ["\tSWEET_FB_MARK 512, 0x00ff, 0xffff"])
+        tree = self.make_tree(
+            {"xnu/osfmk/arm64/start.s":
+             "common_start:\n\tSWEET_FB_MARK 512, 0x00ff, 0xffff\n"})
+        _code, out = self.run_accept(tree=tree)
+        self.assertEqual(self.status(out, "h"), "PASS")
+
+    def test_h_catches_patch_that_never_landed(self):
+        self.write_patch("0016-c.patch", "osfmk/arm64/start.s",
+                         ["\tSWEET_FB_MARK 512, 0x00ff, 0xffff"])
+        tree = self.make_tree({"xnu/osfmk/arm64/start.s": "common_start:\n\tnop\n"})
+        _code, out = self.run_accept(tree=tree)
+        self.assertEqual(self.status(out, "h"), "FAIL")
+        self.assertIn("SWEET_FB_MARK 512", out)
+
+    def test_h_missing_target_file_fails(self):
+        self.write_patch("0016-c.patch", "osfmk/arm64/start.s",
+                         ["\tSWEET_FB_MARK 512, 0x00ff, 0xffff"])
+        tree = self.make_tree({"xnu/other.c": "int x;\n"})
+        _code, out = self.run_accept(tree=tree)
+        self.assertEqual(self.status(out, "h"), "FAIL")
+        self.assertIn("missing from the tree", out)
 
     # partial input -----------------------------------------------------
     def test_missing_kernel_is_incomplete_not_pass(self):
