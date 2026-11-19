@@ -71,7 +71,7 @@ The workflow is manual + on push to `patches/**`. It:
 5. uploads `xnu-buildtree` (object tree, `build.log`, SDK platform headers)
    plus the kernel and `pac-count.json` when a kernel was produced.
 
-## Acceptance criteria (checked separately, from the log)
+## Acceptance criteria (enforced by CI)
 
 | # | criterion |
 |---|---|
@@ -79,13 +79,15 @@ The workflow is manual + on push to `patches/**`. It:
 | b | `CPU_HAS_APPLE_PAC` is defined nowhere |
 | c | `lipo -info kernel.development.sweet` reports `arm64` |
 | d | zero non-hint PAC instructions in the kernel (`ci/pac_count.py`), otherwise the list of functions |
-| e | the complete list of compile errors, from a `-k` run |
+| e | no compiler errors |
+| f | a kernel artifact exists and the build has no linker or make failures |
 
 ## Status (2026-11-19)
 
-- Run `44406649506`: build failed in `check_all_exports` / `Private.symbolset`; a kernel artifact was produced. The acceptance report counted 10 non-hint PAC instructions and did not recognize the little-endian Mach-O header.
-- Run `44414383264`: build failed generating `Private.symbolset.plist`; no kernel artifact was collected.
-- Run `44428555503`: XNU build was in progress at the last status check.
+- Run `44431047165`: XNU build succeeded and produced a 24,879,760-byte kernel. CI reported `lipo -info: arm64`. Its PAC report initially showed 10 false positives because `ci/pac_count.py` matched TCR/TTBR system-register accesses as PAC-key registers. Re-analysis with the corrected classifier reports 0 non-hint PAC instructions.
+- Run `44431047165`: build log shows `libfirehose_kernel` targeted `x86_64 arm64`; no kernel link command references `liblibfirehose_kernel.a`.
+- Patches `0001..0014` passed ordered `git apply --check` on clean XNU commit `ac9718fb1af618d5ce8678d0dc6e8a58f252216f`.
+- The workflow now runs on `ci/**` changes and fails if an acceptance criterion fails. A fresh CI run is pending the PAC-counter fix.
 
 No Apple binaries, IPSWs, KDKs or device dumps belong in this repository.
 

@@ -1,8 +1,8 @@
 diff --git a/config/Makefile b/config/Makefile
-index 0000000..1111111 100644
+index 6d48aa2..00df9aa 100644
 --- a/config/Makefile
 +++ b/config/Makefile
-@@ -46,11 +46,14 @@
+@@ -46,11 +46,14 @@ EXPORT_SOURCE_ARCH_CONFIG_LC := $(CURRENT_ARCH_CONFIG_LC)
  endif
  
  EXPORTS_FILES := $(foreach symbolset,$(SYMBOL_COMPONENT_LIST),$(symbolset).exports \
@@ -19,7 +19,7 @@ index 0000000..1111111 100644
  
  
  Kasan_EXPORTS := $(SRCROOT)/config/Kasan_disabled.exports
-@@ -71,6 +74,11 @@
+@@ -71,6 +74,11 @@ endif
  
  define symbol_set_template
  $(1)_EXPORTS := $$(addprefix $$(SOURCE)/,$$(filter $(1)%,$$(EXPORTS_FILES)))
@@ -31,7 +31,7 @@ index 0000000..1111111 100644
  ifneq "$$($(1)_OTHER_EXPORTS)" ""
  $(1)_EXPORTS += $$($(1)_OTHER_EXPORTS)
  endif
-@@ -124,6 +132,7 @@
+@@ -124,6 +132,7 @@ $(TARGET)/allsymbols: $(OBJPATH)/$(KERNEL_FILE_NAME)
  	$(_v)$(NM) -gj $< | sort -u > $@
  
  check_all_exports: $(TARGET)/allsymbols $(KEXT_CREATE_SYMBOL_SET)
@@ -39,7 +39,7 @@ index 0000000..1111111 100644
  	$(_v)$(KEXT_CREATE_SYMBOL_SET)					\
  		$(ARCH_FLAGS_$(CURRENT_ARCH_CONFIG))			\
  		-import $(TARGET)/allsymbols				\
-@@ -138,6 +147,7 @@
+@@ -138,6 +147,7 @@ check_all_exports: $(TARGET)/allsymbols $(KEXT_CREATE_SYMBOL_SET)
  			-export $(SOURCE)/$(symbolset).exports		\
  			-export $(SOURCE)/$(symbolset).$(EXPORT_SOURCE_ARCH_CONFIG_LC).exports)	\
  		-output /dev/null $(_vstdout)
@@ -49,7 +49,7 @@ index 0000000..1111111 100644
  	@$(LOG_SUPPORTED_KPI) "$(CURRENT_ARCH_CONFIG_LC)"
 diff --git a/config/Private.SWEET.exports b/config/Private.SWEET.exports
 new file mode 100644
-index 0000000..0000000000000000000000000000000000000000
+index 0000000..8ef7759
 --- /dev/null
 +++ b/config/Private.SWEET.exports
 @@ -0,0 +1 @@

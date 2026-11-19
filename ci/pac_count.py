@@ -62,8 +62,6 @@ EXACT = [
     ("blrab", 0xFFFFFC00, 0xD73F0C00),
     ("blraaz", 0xFFFFFC1F, 0xD63F081F),
     ("blrabz", 0xFFFFFC1F, 0xD63F0C1F),
-    ("mrs_pac_key", 0xFFFFF000, 0xD5382000),
-    ("msr_pac_key", 0xFFFFF000, 0xD5182000),
 ]
 
 LDRA_MASK = 0xFF200400
@@ -128,6 +126,13 @@ def classify(word):
     for name, mask, value in EXACT:
         if word & mask == value:
             return name
+    # PAC key system registers occupy CRn=2, CRm=1..3, Op2=0..3.
+    # Keep CRm in the match; masking only through CRn also catches ordinary
+    # TCR_EL1 and TTBR0/1_EL1 accesses (CRm=0).
+    if word & 0xFFFFF000 == 0xD5382000 and ((word >> 8) & 0xF) in (1, 2, 3):
+        return "mrs_pac_key"
+    if word & 0xFFFFF000 == 0xD5182000 and ((word >> 8) & 0xF) in (1, 2, 3):
+        return "msr_pac_key"
     if word & LDRA_MASK == LDRA_VALUE:
         s10, writeback = ldra_decode(word)
         if writeback == 0 and s10 >= 0:

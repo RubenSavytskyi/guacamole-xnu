@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/workflows/tahoe-xnu.yml"
       - "patches/**"
+      - "ci/**"
 
 permissions:
   contents: read
@@ -122,7 +123,7 @@ jobs:
           cp dxb/build.log out/build.log 2>/dev/null || true
           if [ -f out/build.log ]; then
             python3 ci/accept.py --log out/build.log ${KERNEL:+--kernel "out/$(basename "$KERNEL")"} \
-              --json out/criteria.json || echo "accept.py exit=$?"
+              --json out/criteria.json
           fi
           tar czf out/buildtree.tgz \
             --exclude='*.o' --exclude='*.cpo' --exclude='*.a' --exclude='*.dSYM' --exclude='*.unstripped' \

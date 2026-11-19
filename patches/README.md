@@ -321,3 +321,5 @@ can be generated without Apple-only exports.
   little-endian header.
 - Run `44414383264`: build failed generating `Private.symbolset.plist` because
   the SWEET private export list had no input file. Patch 0014 now adds that file.
+
+- Run `44431047165`: XNU build succeeded and produced a 24,879,760-byte arm64 kernel. The original PAC-counter report contained 10 false positives: its `0xFFFFF000` mask matched ordinary TCR/TTBR accesses as PAC-key registers. The corrected classifier recognizes PAC key registers only for `CRm=1..3`; re-analysis of this artifact reports 0 non-hint PAC instructions.
