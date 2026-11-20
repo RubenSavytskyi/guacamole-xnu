@@ -1,0 +1,291 @@
+diff --git a/osfmk/arm/arm_init.c b/osfmk/arm/arm_init.c
+index 6690846..bd4dcb2 100644
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -203,7 +203,13 @@ unsigned int page_shift_user32; /* for page_size as seen by a 32-bit task */
+ extern void configure_misc_apple_boot_args(void);
+ extern void configure_misc_apple_regs(bool is_boot_cpu);
+ extern void configure_timer_apple_regs(void);
+-extern void configure_late_apple_regs(bool cold_boot);
++extern void configure_timer_apple_regs(void);
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern void sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour);
++extern int  sweet_fb_vm_ready;
++#define SWEET_MARK(slot, colour) sweet_fb_mark((slot), 1, (colour))
++#endif
+ #endif /* __arm64__ */
+ 
+ 
+@@ -356,6 +362,9 @@ arm_init(
+ 	DTEntry chosen = NULL;
+ 	unsigned int dt_entry_size = 0;
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(0, 0xff00ff00);              /* green: arm_init() entered */
++#endif
+ 	arm_slide_rebase_and_sign_image();
+ 
+ 	arm_static_if_init(args);
+@@ -376,6 +385,9 @@ arm_init(
+ #endif /* defined(HAS_APPLE_PAC) */
+ 
+ 	PE_init_platform(FALSE, args); /* Get platform expert set up */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(1, 0xff0000ff);              /* blue: platform expert up */
++#endif
+ 
+ #if __arm64__
+ 	configure_timer_apple_regs();
+@@ -384,6 +396,9 @@ arm_init(
+ 
+ 	configure_misc_apple_boot_args();
+ 	configure_misc_apple_regs(true);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(2, 0xffffff00);              /* yellow: early CPU config done */
++#endif
+ 
+ #if HAS_UPSI_FAILURE_INJECTION
+ 	/* UPSI (Universal Panic and Stall Injection) Logic
+@@ -459,6 +474,9 @@ arm_init(
+ #endif
+ 
+ 	ml_parse_cpu_topology();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(3, 0xffffffff);              /* white: CPU topology parsed */
++#endif
+ 
+ 
+ 	boot_cpu_id = ml_get_boot_cpu_number();
+@@ -490,20 +508,38 @@ arm_init(
+ 	 */
+ 	thread->machine.preemption_count = 0;
+ 	cpu_bootstrap();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(4, 0xffff00ff);              /* magenta: cpu_bootstrap done */
++#endif
+ 
+ 	rtclock_early_init();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(5, 0xff00ffff);              /* cyan: early clock up */
++#endif
+ 
+ 	kernel_debug_string_early("kernel_startup_bootstrap");
+ 	kernel_startup_bootstrap();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(6, 0xff00ff00);              /* green: startup bootstrap done */
++#endif
+ 
+ 	/*
+ 	 * Initialize the timer callout world
+ 	 */
+ 	timer_call_init();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(7, 0xff0000ff);              /* blue: timer callouts up */
++#endif
+ 
+ 	cpu_init();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(8, 0xffffff00);              /* yellow: cpu_init done */
++#endif
+ 
+ 	processor_bootstrap();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(9, 0xffffffff);              /* white: processor bootstrap done */
++#endif
+ 
+ 	if (PE_parse_boot_argn("maxmem", &maxmem, sizeof(maxmem))) {
+ 		xmaxmem = (uint64_t) maxmem * (1024 * 1024);
+@@ -569,7 +605,14 @@ arm_init(
+ 	gDramSize = *dram_size;
+ 	pmap_first_pnum = (ppnum_t)atop(gDramBase);
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_MARK(10, 0xffff00ff);             /* magenta: entering arm_vm_init */
++#endif
+ 	arm_vm_init(xmaxmem, args);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_vm_ready = 1;
++	sweet_fb_mark(1, 2, 0xff0000ff);        /* blue: arm_vm_init returned */
++#endif
+ 
+ 	if (debug_boot_arg) {
+ 		patch_low_glo();
+@@ -583,7 +626,13 @@ arm_init(
+ 
+ 	/* Setup debugging output. */
+ 	const unsigned int serial_exists = serial_init();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(2, 2, 0xffffff00);        /* yellow: serial_init returned */
++#endif
+ 	kernel_startup_initialize_upto(STARTUP_SUB_KPRINTF);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(3, 2, 0xffffffff);        /* white: kprintf startup done */
++#endif
+ 	kprintf("kprintf initialized\n");
+ 
+ 	serialmode = 0;
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 756af52..17ea222 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -51,6 +51,10 @@
+ 
+ #include <san/kasan.h>
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern void sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour);
++#endif
++
+ #if __ARM_KERNEL_PROTECT__
+ /*
+  * If we want to support __ARM_KERNEL_PROTECT__, we need a sufficient amount of
+@@ -1820,6 +1824,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	vm_offset_t      ptpage_vaddr;
+ 	vm_map_address_t dynamic_memory_begin;
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(0, 2, 0xff00ff00);        /* green: arm_vm_init entered */
++#endif
+ 	/*
+ 	 * Get the virtual and physical kernel-managed memory base from boot_args.
+ 	 */
+diff --git a/osfmk/console/video_console.c b/osfmk/console/video_console.c
+index acb51a3..2d9c067 100644
+--- a/osfmk/console/video_console.c
++++ b/osfmk/console/video_console.c
+@@ -122,6 +122,10 @@ void noroot_icon_test(void);
+ 
+ extern int       disableConsoleOutput;
+ static boolean_t gc_enabled     = FALSE;
++
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern void sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour);
++#endif
+ static boolean_t gc_initialized = FALSE;
+ static boolean_t vm_initialized = FALSE;
+ 
+@@ -1236,6 +1240,14 @@ void
+ vcputc_options(char c, __unused bool poll)
+ {
+ 	if (gc_initialized && gc_enabled) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		static boolean_t sweet_first_char = FALSE;
++
++		if (!sweet_first_char) {
++			sweet_first_char = TRUE;
++			sweet_fb_mark(10, 2, 0xffff00ff);   /* magenta: first char drawn */
++		}
++#endif
+ 		VCPUTC_LOCK_LOCK();
+ 		if (gc_enabled) {
+ 			gc_hide_cursor(gc_x, gc_y);
+@@ -2883,6 +2895,9 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 					newMapSize = (unsigned int) round_page(new_vinfo.v_height * new_vinfo.v_rowbytes);                      /* Remember size */
+ 				}
+ 				newVideoVirt = ml_io_map_unmappable((vm_map_offset_t)new_vinfo.v_physaddr, newMapSize, flags);   /* Allocate address space for framebuffer */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++				sweet_fb_mark(7, 2, newVideoVirt ? 0xff00ff00 : 0xffff0000);
++#endif
+ 			}
+ 			new_vinfo.v_baseaddr = newVideoVirt + boot_vinfo->v_offset;                     /* Set the new framebuffer address */
+ 		}
+@@ -2994,6 +3009,9 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 		break;
+ 
+ 	case kPETextScreen:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(8, 2, console_is_serial() ? 0xffff0000 : 0xff00ff00);
++#endif
+ 		if (console_is_serial()) {
+ 			break;
+ 		}
+@@ -3011,6 +3029,9 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 		vc_enable_progressmeter( FALSE );
+ #endif
+ 		gc_enable( TRUE );
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(9, 2, 0xffffff00);    /* yellow: text console enabled */
++#endif
+ 		break;
+ 
+ 	case kPEReleaseScreen:
+diff --git a/pexpert/arm/pe_init.c b/pexpert/arm/pe_init.c
+index 0c5fd12..dc1bf3f 100644
+--- a/pexpert/arm/pe_init.c
++++ b/pexpert/arm/pe_init.c
+@@ -29,6 +29,54 @@
+ /* extern references */
+ extern void     pe_identify_machine(boot_args *bootArgs);
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * Diagnostic breadcrumbs (patch 0018).
++ *
++ * Paint a 32x32 block into the splash framebuffer the shim advertises in
++ * boot_args, so a silent hang can be localised without a debug UART.
++ * Until arm_vm_init() has run, start.s leaves the buffer mapped identity
++ * (VA == PA) and write-through; after that it is mapped here instead.
++ * Row 1 (y = 64) marks the stages of arm_init(), row 2 (y = 128) the
++ * hand-off to the console.
++ */
++#define SWEET_FB_PHYS   0x9c000000UL
++#define SWEET_FB_STRIDE 5760
++#define SWEET_MARK_PITCH 128
++
++int sweet_fb_vm_ready;
++
++void
++sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
++{
++	static volatile uint32_t *mapped;
++	volatile uint32_t *fb;
++	vm_offset_t        base = SWEET_FB_PHYS;
++	unsigned int       x, y;
++
++	if (sweet_fb_vm_ready) {
++		if (mapped == NULL) {
++			mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
++			    SWEET_FB_PHYS, 0x200000);
++		}
++		if (mapped == NULL) {
++			return;
++		}
++		base = (vm_offset_t)(uintptr_t)mapped;
++	}
++
++	fb = (volatile uint32_t *)(base +
++	    (vm_offset_t)row * 64 * SWEET_FB_STRIDE +
++	    (vm_offset_t)slot * SWEET_MARK_PITCH * 4);
++	for (y = 0; y < 32; y++) {
++		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
++		for (x = 0; x < 32; x++) {
++			line[x] = colour;
++		}
++	}
++}
++#endif /* ARM64_BOARD_CONFIG_SWEET */
++
+ /* static references */
+ static void     pe_prepare_images(void);
+ 
+@@ -546,6 +594,9 @@ PE_init_platform(boolean_t vm_initialized, void *args)
+ void
+ PE_create_console(void)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(4, 2, 0xffff00ff);        /* magenta: PE_create_console entered */
++#endif
+ 	/*
+ 	 * Check the head of VRAM for a panic log saved on last panic.
+ 	 * Do this before the VRAM is trashed.
+@@ -565,7 +616,9 @@ PE_create_console(void)
+ 		PE_Video fb = PE_state.video;
+ 		fb.v_baseAddr |= 1;
+ 		PE_initialize_console(&fb, kPEGraphicsMode);
++		sweet_fb_mark(5, 2, 0xff00ffff);    /* cyan: framebuffer mapped */
+ 		initialize_screen(NULL, kPETextScreen);
++		sweet_fb_mark(6, 2, 0xff00ff00);    /* green: text console requested */
+ #else
+ 		PE_initialize_console(&PE_state.video, kPEGraphicsMode);
+ #endif

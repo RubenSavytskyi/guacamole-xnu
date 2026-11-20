@@ -324,3 +324,27 @@ can be generated without Apple-only exports.
 
 - Run `44431047165`: XNU build succeeded and produced a 24,879,760-byte arm64 kernel. The original PAC-counter report contained 10 false positives: its `0xFFFFF000` mask matched ordinary TCR/TTBR accesses as PAC-key registers. The corrected classifier recognizes PAC key registers only for `CRm=1..3`; re-analysis of this artifact reports 0 non-hint PAC instructions.
 - Run `44520878510`: PAC tests passed, but the DSC fast-counter parity test exposed its old broad PAC-key match. `ci/dsc_hist.py` now applies the same CRm-specific match as `ci/pac_count.py`.
+
+
+## Патчі 0015–0018: від кольорових міток до консолі ядра
+
+- **0015** малює 32x32 блоки у splash-кадр (`0x9c000000`) з асемблера до вмикання
+  MMU: зелений `_start`, синій `start_first_cpu`, жовтий — bootstrap-таблиці,
+  білий — безпосередньо перед `MSR SCTLR_EL1`.
+- **0016** додає мапінг 32 МБ блоку кадру у V=P таблицях і дві мітки після
+  вмикання MMU: магента (512) — інструкція після `MSR SCTLR_EL1`, циан (640) —
+  перевірка зчитування SCTLR. На телефоні видно всі шість [перевірено].
+- **0017** ставить консоль ядра на кадр шима: `PE_create_console()` передає
+  `initialize_screen()` копію `PE_state.video` з бітом 0 (адреса фізична), потім
+  викликає `initialize_screen(NULL, kPETextScreen)`; для SWEET береться гілка
+  `VM_WIMG_WCOMB`, `kPEGraphicsMode` виставляє `gc_acquired`, а `gc_scroll_up()`
+  скролить сам екран, поки немає буфера прокрутки.
+- **0018** — діагностика C-частини старту: `sweet_fb_mark()` у `pe_init.c`
+  малює блоки у кадр (identity-мапінг до `arm_vm_init()`, далі `ml_io_map_wcomb`).
+  Ряд 1 (y=64) — етапи `arm_init()`: вхід, `PE_init_platform`, CPU-конфіг,
+  топологія, `cpu_bootstrap`, `rtclock_early_init`, `kernel_startup_bootstrap`,
+  `timer_call_init`, `cpu_init`, `processor_bootstrap`, вхід у `arm_vm_init`.
+  Ряд 2 (y=128) — `arm_vm_init` вхід/вихід, `serial_init`, `STARTUP_SUB_KPRINTF`,
+  вхід у `PE_create_console`, мапінг кадру, запит текстової консолі, результат
+  мапінгу (зелений/червоний), стан `console_is_serial()`, `gc_enable(TRUE)`,
+  перший намальований символ. Патч накладається **після** 0017.
