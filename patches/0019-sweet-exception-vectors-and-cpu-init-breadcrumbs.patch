@@ -1,0 +1,207 @@
+diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
+index 53f9ce5..bfd751c 100644
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -61,6 +61,15 @@
+ #include <machine/machine_cpc.h>
+ #include <san/kasan.h>
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * Diagnostic breadcrumbs (patch 0019): row 5 of the splash framebuffer
++ * (y = 320), slots after every large call in cpu_init().
++ */
++extern void sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour);
++#define SWEET_CPU_MARK(slot, colour) sweet_fb_mark((slot), 5, (colour))
++#endif
++
+ #if KPERF
+ #include <kperf/kptimer.h>
+ #endif /* KPERF */
+@@ -699,17 +708,32 @@ cpu_init(void)
+ 	cpu_data_t     *cdp = getCpuDatap();
+ 	arm_cpu_info_t *cpu_info_p;
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_CPU_MARK(0, 0xff00ff00);          /* green: cpu_init entered */
++#endif
+ 	assert(exception_stack_pointer() != 0);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_CPU_MARK(1, 0xff0000ff);          /* blue: exception stack readable */
++#endif
+ 
+ 	if (cdp->cpu_type != CPU_TYPE_ARM64) {
+ 		cdp->cpu_type = CPU_TYPE_ARM64;
+ 
+ 		timer_call_queue_init(&cdp->rtclock_timer.queue);
+ 		cdp->rtclock_timer.deadline = EndOfAllTime;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		SWEET_CPU_MARK(2, 0xffffff00);  /* yellow: timer queue init */
++#endif
+ 
+ 		if (cdp == &BootCpuData) {
+ 			do_cpuid();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			SWEET_CPU_MARK(3, 0xffffffff);  /* white: MIDR read */
++#endif
+ 			do_mvfpid();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			SWEET_CPU_MARK(4, 0xffff00ff);  /* magenta: mvfp info set */
++#endif
+ 		} else {
+ 			/*
+ 			 * We initialize non-boot CPUs here; the boot CPU is
+@@ -719,9 +743,15 @@ cpu_init(void)
+ 		}
+ 
+ 		do_cacheid();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		SWEET_CPU_MARK(5, 0xff00ffff);  /* cyan: cache geometry read */
++#endif
+ 
+ 		/* ARM_SMP: Assuming identical cpu */
+ 		do_debugid();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		SWEET_CPU_MARK(6, 0xffff0000);  /* red: ID_AA64DFR0 read */
++#endif
+ 
+ 		cpu_info_p = cpuid_info();
+ 
+@@ -741,8 +771,14 @@ cpu_init(void)
+ 		}
+ 
+ 		cdp->cpu_threadtype = CPU_THREADTYPE_NONE;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		SWEET_CPU_MARK(7, 0xffff8000);  /* orange: cpu subtype chosen */
++#endif
+ #if CONFIG_CPU_COUNTERS
+ 		cpc_cpu_transition(CPC_CPU_EARLY_INIT, cdp);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		SWEET_CPU_MARK(8, 0xff8000ff);  /* purple: cpc EARLY_INIT done */
++#endif
+ #endif /* CONFIG_CPU_COUNTERS */
+ 	}
+ 	cdp->cpu_stat.irq_ex_cnt_wake = 0;
+@@ -753,6 +789,9 @@ cpu_init(void)
+ 	cdp->cpu_running = TRUE;
+ 	cdp->cpu_sleep_token_last = cdp->cpu_sleep_token;
+ 	cdp->cpu_sleep_token = 0x0UL;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_CPU_MARK(9, 0xff008080);          /* teal: before cpc ONLINE */
++#endif
+ 
+ #if CONFIG_CPU_COUNTERS
+ 	/*
+@@ -760,6 +799,9 @@ cpu_init(void)
+ 	 * if necessary.
+ 	 */
+ 	cpc_cpu_transition(CPC_CPU_ONLINE, cdp);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_CPU_MARK(10, 0xff80ff00);        /* lime: cpc ONLINE returned */
++#endif
+ #endif /* CONFIG_CPU_COUNTERS */
+ }
+ 
+diff --git a/osfmk/arm64/locore.s b/osfmk/arm64/locore.s
+index 3f42af8..baaea9d 100644
+--- a/osfmk/arm64/locore.s
++++ b/osfmk/arm64/locore.s
+@@ -602,6 +602,58 @@ Lel0_serror_vector_64:
+  * END OF EXCEPTION VECTORS PAGE *
+  *********************************/
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++/*
++ * Diagnostic breadcrumbs (patch 0019).
++ *
++ * On the first EL1 exception, paint ESR_EL1 (row 3, y = 192) and the low 32
++ * bits of ELR_EL1 (row 4, y = 256) into the splash framebuffer: one 32x32
++ * block per bit, 32 pixels per slot, bit 0 at x = 0, white = 1, black = 0.
++ * Then spin forever.
++ *
++ * Constraints: no stack, no memory reads; the only accesses are the stores
++ * into the framebuffer, which start.s leaves mapped identity (VA == PA) until
++ * arm_vm_init() installs the kernel tables.  x0-x17 are clobbered, which is
++ * fine because this never returns.
++ */
++.macro SWEET_EXC_PAINT_WORD vreg, rowoff
++	mov	x13, #0
++Lsweet_bit\@:
++	add	x14, x11, \rowoff
++	add	x14, x14, x13, lsl #7
++	lsr	x15, \vreg, x13
++	and	x15, x15, #1
++	neg	x15, x15
++	mov	w16, #32
++Lsweet_line\@:
++	mov	w17, #32
++Lsweet_px\@:
++	str	w15, [x14], #4
++	subs	w17, w17, #1
++	b.ne	Lsweet_px\@
++	add	x14, x14, #1536
++	add	x14, x14, #1, lsl #12		/* + 4096 = stride - block */
++	subs	w16, w16, #1
++	b.ne	Lsweet_line\@
++	add	x13, x13, #1
++	cmp	x13, #32
++	b.ne	Lsweet_bit\@
++.endm
++
++Lsweet_exception_paint:
++	mrs	x9, ESR_EL1
++	mrs	x10, ELR_EL1
++	movz	x11, #0x9c00, lsl #16		/* framebuffer base, VA == PA */
++	movz	x12, #0x10e, lsl #16
++	lsr	x12, x12, #4			/* 192 * 5760 */
++	SWEET_EXC_PAINT_WORD x9, x12
++	movz	x12, #0x168, lsl #16
++	lsr	x12, x12, #4			/* 256 * 5760 */
++	SWEET_EXC_PAINT_WORD x10, x12
++Lsweet_exception_paint_halt:
++	b	Lsweet_exception_paint_halt
++#endif /* ARM64_BOARD_CONFIG_SWEET */
++
+ 
+ 
+ .macro EL1_SP0_VECTOR
+@@ -626,6 +678,9 @@ Lel0_serror_vector_64:
+ .endmacro
+ 
+ el1_sp0_synchronous_vector_long:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	b	Lsweet_exception_paint
++#endif
+ 	stp		x0, x1, [sp, #-16]!				// Save x0 and x1 to the exception stack
+ 	mrs		x1, ESR_EL1							// Get the exception syndrome
+ 	/* If the stack pointer is corrupt, it will manifest either as a data abort
+@@ -730,6 +785,9 @@ el1_sp0_fiq_vector_long:
+ 	b		fleh_dispatch64
+ 
+ el1_sp0_serror_vector_long:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	b	Lsweet_exception_paint
++#endif
+ 	EL1_SP0_VECTOR
+ 	adrp	x1, EXT(fleh_serror)@page				// Load address for fleh
+ 	add		x1, x1, EXT(fleh_serror)@pageoff
+@@ -749,6 +807,9 @@ el1_sp0_serror_vector_long:
+ .endmacro
+ 
+ el1_sp1_synchronous_vector_long:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	b	Lsweet_exception_paint
++#endif
+ 	/*
+ 	 * Before making our first (potentially faulting) memory access, check if we
+ 	 * previously tried and failed to execute this vector. If we did, it's not
+@@ -898,6 +959,9 @@ el1_sp1_fiq_vector_long:
+ 	b		fleh_dispatch64
+ 
+ el1_sp1_serror_vector_long:
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	b	Lsweet_exception_paint
++#endif
+ 	EL1_SP1_VECTOR
+ 	adrp	x1, fleh_serror_sp1@page
+ 	add		x1, x1, fleh_serror_sp1@pageoff

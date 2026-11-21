@@ -348,3 +348,22 @@ can be generated without Apple-only exports.
   вхід у `PE_create_console`, мапінг кадру, запит текстової консолі, результат
   мапінгу (зелений/червоний), стан `console_is_serial()`, `gc_enable(TRUE)`,
   перший намальований символ. Патч накладається **після** 0017.
+
+- **0019** — діагностика падіння в `cpu_init()`. Вектори `VBAR_EL1` (EL1 SP0/SP1,
+  синхронні та SError) на першому виключенні малюють `ESR_EL1` (ряд 3, y=192) і
+  молодші 32 біти `ELR_EL1` (ряд 4, y=256): по одному блоку 32x32 на біт, крок
+  32 px, біт 0 ліворуч, білий = 1, чорний = 0, після чого вічно крутяться. Код
+  не використовує стек і не читає пам'ять — лише записи в кадр
+  `0x9c000000` (identity-мапінг до `arm_vm_init()`). Ряд 5 (y=320) — підмітки
+  `cpu_init()`: вхід, `assert`, `timer_call_queue_init`, `do_cpuid`,
+  `do_mvfpid`, `do_cacheid`, `do_debugid`, вибір subtype,
+  `cpc_cpu_transition(EARLY_INIT)`, стан перед `cpc_cpu_transition(ONLINE)`
+  і повернення з нього. Накладається **після** 0018.
+
+  Навіщо: тест 0018 показав ряд 1 слоти 0-7 і жодного з 8-10, тобто ядро гине
+  в `cpu_init()`. [припущення] Перший підозрюваний —
+  `cpc_cpu_transition(CPC_CPU_ONLINE)` -> `cpc_hw_configure()` ->
+  `cpc_counters_resync()` -> `cpc_counter_set_value()`, де третя інструкція
+  `mrs x22, S3_1_C15_C0_0` (Apple CPMU PMCR0) на Snapdragon 855 не існує і дає
+  UNDEFINED (ESR EC=0x00). Дзеркальна перевірка: у ядрі run 20 є 113 таких
+  IMPDEF-доступів (`S3_1_C15_*`, `S3_2_C15_*`), усі — у cpc/kpc/AWL-коді.
