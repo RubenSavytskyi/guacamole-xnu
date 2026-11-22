@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0016 applied in order; 0015 adds pre-MMU and 0016 adds post-MMU framebuffer diagnostics
+patches/   0001..0020 applied in order; 0015-0019 trace early boot, 0020 disables unsupported Apple CPMU access
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -46,6 +46,10 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0014 | `config/Makefile`, `config/Private.SWEET.exports` | excludes Apple/KDK exports and export checks for SWEET; provides an empty SWEET private symbol list for plist generation |
 | 0015 | `osfmk/arm64/start.s` | paints four 32-by-32 framebuffer blocks at `_start`, `start_first_cpu`, after bootstrap table setup, and before MMU enable; compiled in run 17 |
 | 0016 | `osfmk/arm64/start.s` | maps the 32 MB framebuffer block in the early V=P table and paints post-MMU and post-SCTLR-check markers; LF-normalized and queued in run 19 |
+| 0017 | `osfmk/arm64/pe_init.c`, `osfmk/console/video_console.c` | maps the physical framebuffer for SWEET and enables the early kernel text console |
+| 0018 | `osfmk/arm64/arm_init.c` | paints C-level boot checkpoints around platform and CPU startup |
+| 0019 | `osfmk/arm64/start.s`, `osfmk/arm64/cpu.c` | records ESR/ELR on the first synchronous exception and adds fine-grained `cpu_init()` checkpoints |
+| 0020 | `osfmk/arm64/cpc_arm64.c`, `osfmk/kern/cpc.c` | honors `cpc_cpmu_supported=false` on SWEET: skips Apple CPMU operations and reports unavailable cycle counters as zero |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -146,9 +150,25 @@ transcript.
 | Segments | 19 `LC_SEGMENT_64` commands; first is `__TEXT`, `fileoff=0` | Satisfies `build()`'s first-text-segment check |
 | 16 KB granule | Non-empty segments have 16 KB-aligned `vmaddr`, `vmsize` and `fileoff` | Compatible with the shim's 16 KB page constant; file byte count need not be page-aligned (`__LINKEDIT` is not) |
 | Chained fixups | No `LC_DYLD_CHAINED_FIXUPS` command | `apply_chained_fixups()` returns zero; no fixup rewrite is needed |
-| Payload | The artifact starts with Mach-O magic, not `SWEETXNU` | It is a raw kernel; `mkpayload.py` must wrap it with a matching ADT before the shim can load it |
+| Payload | The CI artifact is a raw Mach-O kernel; the local firstboot image wraps it as `SWEETXNU` | `tahoe-firstboot-0019.img` and its D22 ADT exist; this image boots only the kernel diagnostics and has no macOS root filesystem |
 
-No ADT (`.adt`/`.dtb`) or wrapped payload was found in the workspace during
-this audit. The raw kernel therefore has not yet been prepared for a device
-boot. `fastboot boot` remains a user-run hardware check after the payload and
-matching ADT are available.
+The `tahoe-firstboot-0019.img` wrapper and matching ADT are present locally.
+The last recorded device result is for image 0018; image 0019 has not been
+confirmed on-device. The phone was not attached over fastboot or ADB during
+the current bring-up pass.
+
+## Next boot blocker — unsupported Apple CPMU
+
+Run `44799622620` built all patches through 0019. The device observation for
+image 0018 placed the failure inside `cpu_init()` at `CPC_CPU_ONLINE`: XNU
+programmed Apple implementation-defined CPMU registers that the Snapdragon
+does not implement. Patch 0006 set `cpc_cpmu_supported=false`, but the XNU
+12377 CPC call paths did not consult that flag.
+
+Patch 0020 carries that capability flag through CPU transitions and CPC
+counter access, so the no-CPMU board can pass CPU online without executing
+Apple CPMU instructions. It applies to the saved run-21 buildtree after
+patches 0001–0019. This is not a build or device result yet; fastboot and ADB
+currently show no attached phone. The next milestone is a kernel build and a
+temporary `fastboot boot` with the same ADT/shim, then use the 0019 ESR/ELR
+markers if startup still traps.

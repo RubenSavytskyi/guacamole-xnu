@@ -1,0 +1,227 @@
+diff --git a/osfmk/arm64/cpc_arm64.c b/osfmk/arm64/cpc_arm64.c
+index da691b6..5b83bc4 100644
+--- a/osfmk/arm64/cpc_arm64.c
++++ b/osfmk/arm64/cpc_arm64.c
+@@ -103,6 +103,9 @@ cpc_hw_counter(
+ {
+ 	switch (hw) {
+ 	case CPC_HW_CPMU:;
++		if (!cpc_cpmu_supported) {
++			return NULL;
++		}
+ 		struct cpc_cpu *cpu = &cpu_datap(id)->cpu_cpc;
+ 		*deadlines_out = &cpu->ccp_cpmu_deadlines[slot];
+ 		return &cpu->ccp_cpmu_counters[slot];
+@@ -118,7 +121,7 @@ cpc_hw_unit_count(cpc_hw_t hw)
+ {
+ 	switch (hw) {
+ 	case CPC_HW_CPMU:
+-		return ml_get_cpu_count();
++		return cpc_cpmu_supported ? ml_get_cpu_count() : 0;
+ 	case CPC_HW_UPMU:
+ 		return 0; // None supported by CPC, at least.
+ 	default:
+@@ -150,6 +153,10 @@ _cpc_slot_assert_disabled(cpc_slot_t __unused slot)
+ void
+ cpc_counter_set_value(cpc_counter_t counter, cpc_slot_t slot, uint64_t value)
+ {
++	if (!cpc_cpmu_supported) {
++		counter->cctr_prev_value = value;
++		return;
++	}
+ 	_cpc_slot_assert_disabled(slot);
+ 	counter->cctr_prev_value = value;
+ 	switch (slot) {
+@@ -193,6 +200,9 @@ cpc_counters_resync(cpc_hw_t __assert_only hw,
+ uint64_t
+ cpc_cpmu_counter_update(cpc_counter_t counter, cpc_slot_t slot)
+ {
++	if (!cpc_cpmu_supported) {
++		return counter->cctr_prev_value;
++	}
+ 	_cpc_slot_assert_disabled(slot);
+ 	uint64_t value = 0;
+ 	switch (slot) {
+@@ -228,6 +238,9 @@ void
+ cpc_hw_update(cpc_hw_t __assert_only hw)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	// XXX This barrier is not strictly necessary.
+ 	// Might be worth adding a speculative version of this function.
+ 	__builtin_arm_isb(ISB_SY);
+@@ -259,6 +272,9 @@ cpc_hw_update(cpc_hw_t __assert_only hw)
+ uint64_t
+ cpc_cycles(void)
+ {
++	if (!cpc_cpmu_supported) {
++		return 0;
++	}
+ #ifndef __BUILDING_XNU_LIB_UNITTEST__
+ 	uint64_t cur_cycles = __builtin_arm_rsr64("S3_2_C15_C0_0");
+ #else // !defined(__BUILDING_XNU_LIB_UNITTEST__)
+@@ -272,6 +288,9 @@ cpc_cycles(void)
+ uint64_t
+ cpc_instrs(void)
+ {
++	if (!cpc_cpmu_supported) {
++		return 0;
++	}
+ #ifndef __BUILDING_XNU_LIB_UNITTEST__
+ 	uint64_t cur_instrs = __builtin_arm_rsr64("S3_2_C15_C1_0");
+ #else // !defined(__BUILDING_XNU_LIB_UNITTEST__)
+@@ -292,6 +311,9 @@ cpc_cycles_instrs(void)
+ struct cpc_cycles_instrs
+ cpc_cycles_instrs_spec(void)
+ {
++	if (!cpc_cpmu_supported) {
++		return (struct cpc_cycles_instrs){ .cycles = 0, .instrs = 0 };
++	}
+ 	uint64_t cur_cycles = __builtin_arm_rsr64("S3_2_C15_C0_0");
+ 	uint64_t cur_instrs = __builtin_arm_rsr64("S3_2_C15_C1_0");
+ 	cpc_counter_t counters = cpc_cpmu_counters();
+@@ -306,6 +328,9 @@ cpc_cycles_instrs_spec(void)
+ struct cpc_cycles_instrs
+ cpc_cycles_instrs_raw_approx(void)
+ {
++	if (!cpc_cpmu_supported) {
++		return (struct cpc_cycles_instrs){ .cycles = 0, .instrs = 0 };
++	}
+ 	cpc_counter_t counters = cpc_cpmu_counters();
+ 	return (struct cpc_cycles_instrs){
+ 		       .cycles = counters[0].cctr_prev_value,
+@@ -317,6 +342,9 @@ uint64_t
+ cpc_hw_pmi_count(cpc_hw_t __assert_only hw)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return 0;
++	}
+ 
+ 	const ml_topology_info_t *topology_info = ml_get_topology_info();
+ 	uint64_t npmis = 0;
+@@ -633,6 +661,9 @@ cpc_machine_regs_reset(const union cpc_machine_regs * __unused regs,
+     cpc_hw_t __assert_only hw)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	PMCR0_LOG();
+ 	cpc_machine_regs_apply(&cpc_machine_regs_base, hw);
+ 	_cpc_cpmu_regs_zero_pmcs();
+@@ -648,6 +679,9 @@ cpc_machine_regs_apply(const union cpc_machine_regs *regs,
+     cpc_hw_t __assert_only hw)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	assert(ml_get_interrupts_enabled() == FALSE);
+ 
+ 	_cpc_cpmu_pmcr01_write(regs->cmr_cpmu.cacr_pmcr[0],
+@@ -693,6 +727,9 @@ void
+ cpc_hw_disable_pmis(cpc_hw_t __assert_only hw, const union cpc_machine_regs *regs)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	PMCR0_LOG();
+ 	_cpc_cpmu_pmcr0_write(regs->cmr_cpmu.cacr_pmcr[0] & ~PMCR0_INTGEN);
+ }
+@@ -701,6 +738,9 @@ void
+ cpc_hw_reenable_pmis(cpc_hw_t __assert_only hw, const union cpc_machine_regs *regs)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	PMCR0_LOG();
+ 	_cpc_cpmu_pmcr0_write(regs->cmr_cpmu.cacr_pmcr[0]);
+ }
+@@ -711,6 +751,9 @@ cpc_hw_slot_disable(cpc_hw_t __assert_only hw,
+     cpc_slot_t slot)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	unsigned int const enable_offset = slot > 7 ? 32 - 8 : 0;
+ 	uint64_t pmcr0_enable = 1ULL << (enable_offset + slot);
+ 	PMCR0_LOG();
+@@ -723,6 +766,9 @@ cpc_hw_slot_reenable(cpc_hw_t __assert_only hw,
+     cpc_slot_t __unused slot)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		return;
++	}
+ 	PMCR0_LOG();
+ 	_cpc_cpmu_pmcr0_write(regs->cmr_cpmu.cacr_pmcr[0]);
+ }
+@@ -891,6 +937,19 @@ _cpc_cpmu_control_reenable(void)
+ void
+ cpc_cpu_transition(cpc_cpu_event_t event, void *vcpu_data)
+ {
++	if (!cpc_cpmu_supported) {
++		switch (event) {
++		case CPC_CPU_ONLINE:
++		case CPC_CPU_OFFLINE:
++		case CPC_CPU_IDLE:
++		case CPC_CPU_ACTIVE_WARM:
++		case CPC_CPU_ACTIVE_COLD:
++			return;
++		default:
++			break;
++		}
++	}
++
+ 	struct cpu_data *cpu_data = vcpu_data;
+ 	struct cpc_cpu *cpu = &cpu_data->cpu_cpc;
+ 
+@@ -964,6 +1023,16 @@ cpc_fiq(
+ 	uint64_t pmcr0,
+ 	uint64_t upmsr)
+ {
++	if (!cpc_cpmu_supported) {
++#if HAS_UPMU
++		if (upmsr != 0) {
++			mt_uncore_pmi(upmsr);
++		}
++#else // HAS_UPMU
++		#pragma unused(cpu, pmcr0, upmsr)
++#endif // !HAS_UPMU
++		return;
++	}
+ #if CPMU_AIC_PMI
+ #pragma unused(cpu, pmcr0)
+ #else // CPMU_AIC_PMI
+@@ -1061,6 +1130,11 @@ cpc_hw_read_regs(cpc_hw_t __assert_only hw,
+     uint64_t *counter_values)
+ {
+ 	assert3u(hw, ==, CPC_HW_CPMU);
++	if (!cpc_cpmu_supported) {
++		bzero(regs, sizeof(*regs));
++		bzero(counter_values, sizeof(uint64_t) * CPMU_PMC_COUNT);
++		return;
++	}
+ 
+ 	regs->cmr_cpmu = (struct _cpc_arm64_cpmu_regs){
+ 		.cacr_pmcr[0] = __builtin_arm_rsr64("S3_1_C15_C0_0"),
+diff --git a/osfmk/kern/cpc.c b/osfmk/kern/cpc.c
+index 70a5868..1b9da4a 100644
+--- a/osfmk/kern/cpc.c
++++ b/osfmk/kern/cpc.c
+@@ -687,6 +687,9 @@ cpc_hw_configure(cpc_hw_t hw,
+     cpc_deadlines_t deadlines,
+     bool check_for_cyclics)
+ {
++	if (hw == CPC_HW_CPMU && !cpc_cpmu_supported) {
++		return;
++	}
+ 	if (hw == CPC_HW_CPMU) {
+ 		assert(ml_get_interrupts_enabled() == FALSE);
+ 		cpc_set_t set = os_atomic_load(_cpc_active_sets + hw, acquire);
