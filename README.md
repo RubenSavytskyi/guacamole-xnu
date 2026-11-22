@@ -52,6 +52,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0020 | `osfmk/arm64/cpc_arm64.c`, `osfmk/kern/cpc.c` | honors `cpc_cpmu_supported=false` on SWEET: skips Apple CPMU operations and reports unavailable cycle counters as zero |
 | 0021 | `config/MASTER.arm64.MacOSX` | sets `CPU_COUNTERS_BASE` empty for SWEET, matching the known macos27 kernel configuration |
 | 0022 | `osfmk/arm64/cpu.c` | keeps SWEET `cpu_init()` framebuffer checkpoints 8 and 10 visible when `CONFIG_CPU_COUNTERS` is disabled |
+| 0023 | osfmk/arm64/arm_vm_init.c | reserves worst-case VA padding for PTOV block-alignment gaps in the non-PPL physmap, including ARM_LARGE_MEMORY |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -152,26 +153,29 @@ transcript.
 | Segments | 19 `LC_SEGMENT_64` commands; first is `__TEXT`, `fileoff=0` | Satisfies `build()`'s first-text-segment check |
 | 16 KB granule | Non-empty segments have 16 KB-aligned `vmaddr`, `vmsize` and `fileoff` | Compatible with the shim's 16 KB page constant; file byte count need not be page-aligned (`__LINKEDIT` is not) |
 | Chained fixups | No `LC_DYLD_CHAINED_FIXUPS` command | `apply_chained_fixups()` returns zero; no fixup rewrite is needed |
-| Payload | The CI artifact is a raw Mach-O kernel; the local firstboot image wraps it as `SWEETXNU` | `tahoe-firstboot-0019.img` and its D22 ADT exist; this image boots only the kernel diagnostics and has no macOS root filesystem |
+| Payload | The CI artifact is a raw Mach-O kernel; the local firstboot image wraps it as `SWEETXNU` | `tahoe-firstboot-0020.img` and its D22 ADT exist; the image contains kernel diagnostics only and has no macOS root filesystem |
 
-The `tahoe-firstboot-0019.img` wrapper and matching ADT are present locally.
-The last recorded device result is for image 0018; image 0019 has not been
-confirmed on-device. The phone was not attached over fastboot or ADB during
-the current bring-up pass.
+The latest device result is for `tahoe-firstboot-0020.img`. The user reports
+that all 11 row-5 `cpu_init()` markers appeared, including slot 10, so CPU
+initialization returned. Row 1 shows all 11 `arm_init()` markers through entry
+to `arm_vm_init()`. Row 2 shows only slot 0 (entry); slot 1 (return) is absent.
+Rows 3–4 (ESR/ELR) are empty, and the shim text remains visible, so the video
+console has not taken over. This places the stop inside `arm_vm_init()` without
+an observed synchronous exception.
+## Current boot blocker — physmap alignment in `arm_vm_init()`
 
-## Next boot attempt — CPU counters disabled for SWEET
+CI run `45065068380` built patches 0001–0020 as plain arm64 with zero
+non-hint PAC. The user then temporarily booted image 0020 and reported that
+`cpu_init()` passed but `arm_vm_init()` did not return; the details are above.
 
-Run `44799622620` built patches 0001–0019. The device observation for image
-0018 placed the failure inside `cpu_init()` at `CPC_CPU_ONLINE`, where XNU
-accessed Apple CPMU registers absent on Snapdragon. Run `45065068380` completed
-successfully with patch 0020, but that build has not been device-tested.
+The same-device macos27 bring-up records the matching `arm_vm_init()` failure:
+`arm_vm_physmap_init()` can move PTOV regions by block alignment, but the
+non-PPL `ARM_LARGE_MEMORY` path did not reserve corresponding virtual-address
+space. Patch 0023 adapts that padding fix to Tahoe 26.5 and reserves the margin
+in both the physmap bound and its L1 allocation. Patches 0021, 0022, and 0023
+apply cleanly in order to the saved run-21 buildtree source. Patch 0023 is not
+built or device-tested yet.
 
-Patch 0021 disables `CPU_COUNTERS_BASE` for SWEET in `MASTER.arm64.MacOSX`,
-matching the successful macos27 configuration. Patch 0022 keeps diagnostic
-checkpoints 8 and 10 visible outside the `CONFIG_CPU_COUNTERS` guards. Both
-patches apply in order to the saved run-21 buildtree. Run `45068899323` built the ARM64 kernel with zero non-hint PAC and no
-compiler or linker errors; all 22 patches applied. Acceptance criterion (h)
-failed because the first 0022 revision changed two diagnostic comments added
-by 0019. The current 0022 preserves those lines exactly and only moves the
-counter guards, with explanatory comments. This revision awaits a CI rerun.
-Device testing remains the user's next step.
+The first CI run with 0021–0022 built a kernel and passed arm64, PAC, compile,
+link, and patch-application checks; criterion (h) caught two renamed marker
+comments from 0019. The current 0022 preserves those source lines verbatim.
