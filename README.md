@@ -50,6 +50,8 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0018 | `osfmk/arm64/arm_init.c` | paints C-level boot checkpoints around platform and CPU startup |
 | 0019 | `osfmk/arm64/start.s`, `osfmk/arm64/cpu.c` | records ESR/ELR on the first synchronous exception and adds fine-grained `cpu_init()` checkpoints |
 | 0020 | `osfmk/arm64/cpc_arm64.c`, `osfmk/kern/cpc.c` | honors `cpc_cpmu_supported=false` on SWEET: skips Apple CPMU operations and reports unavailable cycle counters as zero |
+| 0021 | `config/MASTER.arm64.MacOSX` | sets `CPU_COUNTERS_BASE` empty for SWEET, matching the known macos27 kernel configuration |
+| 0022 | `osfmk/arm64/cpu.c` | keeps SWEET `cpu_init()` framebuffer checkpoints 8 and 10 visible when `CONFIG_CPU_COUNTERS` is disabled |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -157,18 +159,16 @@ The last recorded device result is for image 0018; image 0019 has not been
 confirmed on-device. The phone was not attached over fastboot or ADB during
 the current bring-up pass.
 
-## Next boot blocker — unsupported Apple CPMU
+## Next boot attempt — CPU counters disabled for SWEET
 
-Run `44799622620` built all patches through 0019. The device observation for
-image 0018 placed the failure inside `cpu_init()` at `CPC_CPU_ONLINE`: XNU
-programmed Apple implementation-defined CPMU registers that the Snapdragon
-does not implement. Patch 0006 set `cpc_cpmu_supported=false`, but the XNU
-12377 CPC call paths did not consult that flag.
+Run `44799622620` built patches 0001–0019. The device observation for image
+0018 placed the failure inside `cpu_init()` at `CPC_CPU_ONLINE`, where XNU
+accessed Apple CPMU registers absent on Snapdragon. Run `45065068380` completed
+successfully with patch 0020, but that build has not been device-tested.
 
-Patch 0020 carries that capability flag through CPU transitions and CPC
-counter access, so the no-CPMU board can pass CPU online without executing
-Apple CPMU instructions. It applies to the saved run-21 buildtree after
-patches 0001–0019. This is not a build or device result yet; fastboot and ADB
-currently show no attached phone. The next milestone is a kernel build and a
-temporary `fastboot boot` with the same ADT/shim, then use the 0019 ESR/ELR
-markers if startup still traps.
+Patch 0021 disables `CPU_COUNTERS_BASE` for SWEET in `MASTER.arm64.MacOSX`,
+matching the successful macos27 configuration. Patch 0022 keeps diagnostic
+checkpoints 8 and 10 visible outside the `CONFIG_CPU_COUNTERS` guards. Both
+patches apply in order to the saved run-21 buildtree. They are not compiled or
+booted yet. The next milestone is CI for 0021–0022, then wrap the kernel with
+the existing D22 ADT/shim. Device testing remains the user's next step.

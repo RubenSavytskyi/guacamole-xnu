@@ -1,0 +1,30 @@
+diff --git a/osfmk/arm64/cpu.c b/osfmk/arm64/cpu.c
+index bfd751c..c015ef1 100644
+--- a/osfmk/arm64/cpu.c
++++ b/osfmk/arm64/cpu.c
+@@ -776,10 +776,10 @@ cpu_init(void)
+ #endif
+ #if CONFIG_CPU_COUNTERS
+ 		cpc_cpu_transition(CPC_CPU_EARLY_INIT, cdp);
++#endif /* CONFIG_CPU_COUNTERS */
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+-		SWEET_CPU_MARK(8, 0xff8000ff);  /* purple: cpc EARLY_INIT done */
++		SWEET_CPU_MARK(8, 0xff8000ff);  /* purple: CPU counter init stage */
+ #endif
+-#endif /* CONFIG_CPU_COUNTERS */
+ 	}
+ 	cdp->cpu_stat.irq_ex_cnt_wake = 0;
+ 	cdp->cpu_stat.ipi_cnt_wake = 0;
+@@ -799,10 +799,10 @@ cpu_init(void)
+ 	 * if necessary.
+ 	 */
+ 	cpc_cpu_transition(CPC_CPU_ONLINE, cdp);
++#endif /* CONFIG_CPU_COUNTERS */
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+-	SWEET_CPU_MARK(10, 0xff80ff00);        /* lime: cpc ONLINE returned */
++	SWEET_CPU_MARK(10, 0xff80ff00);        /* lime: CPU ONLINE returned (or skipped) */
+ #endif
+-#endif /* CONFIG_CPU_COUNTERS */
+ }
+ 
+ void
