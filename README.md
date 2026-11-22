@@ -169,6 +169,9 @@ successfully with patch 0020, but that build has not been device-tested.
 Patch 0021 disables `CPU_COUNTERS_BASE` for SWEET in `MASTER.arm64.MacOSX`,
 matching the successful macos27 configuration. Patch 0022 keeps diagnostic
 checkpoints 8 and 10 visible outside the `CONFIG_CPU_COUNTERS` guards. Both
-patches apply in order to the saved run-21 buildtree. They are not compiled or
-booted yet. The next milestone is CI for 0021–0022, then wrap the kernel with
-the existing D22 ADT/shim. Device testing remains the user's next step.
+patches apply in order to the saved run-21 buildtree. Run `45068899323` built the ARM64 kernel with zero non-hint PAC and no
+compiler or linker errors; all 22 patches applied. Acceptance criterion (h)
+failed because the first 0022 revision changed two diagnostic comments added
+by 0019. The current 0022 preserves those lines exactly and only moves the
+counter guards, with explanatory comments. This revision awaits a CI rerun.
+Device testing remains the user's next step.
