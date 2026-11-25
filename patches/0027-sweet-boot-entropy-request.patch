@@ -1,0 +1,38 @@
+Subject: [PATCH] SWEET: request only the device-tree random seed
+
+diff --git a/osfmk/prng/prng_random.c b/osfmk/prng/prng_random.c
+index 504b3fa..8c851e9 100644
+--- a/osfmk/prng/prng_random.c
++++ b/osfmk/prng/prng_random.c
+@@ -52,6 +52,17 @@ static SECURITY_READ_ONLY_LATE(int) prng_ready;
+ 
+ #if defined(__x86_64__)
+ 	#define BOOTLOADER_ENTROPY_REQUEST_SIZE 64 // efiboot max
++#elif defined(SWEET)
++/*
++ * SWEET: the shim builds /chosen/random-seed with tools/mkadt.py, and it is
++ * SEED_SIZE (64) bytes, the size Apple device trees use. The arm64 default
++ * below requests 4 * SEED_SIZE, which PE_get_random_seed() cannot satisfy;
++ * bootseed_init_bootloader() then panics with "Expected 256 seed bytes from
++ * bootloader, but got 64" inside early_random(), i.e. in the arm_vm_init()
++ * memory/physmap sizing block. Ask for what the device tree has; the unused
++ * tail of the buffer is zeroed below.
++ */
++	#define BOOTLOADER_ENTROPY_REQUEST_SIZE SEED_SIZE
+ #else
+ 	#define BOOTLOADER_ENTROPY_REQUEST_SIZE 4*SEED_SIZE
+ #endif
+@@ -141,9 +152,10 @@ bootseed_init(void)
+ 	uint8_t bootloader_rand[4 * SEED_SIZE];
+ 	bootseed_init_bootloader(BOOTLOADER_ENTROPY_REQUEST_SIZE, bootloader_rand);
+ 
+-	#if defined(__x86_64__) && BOOTLOADER_ENTROPY_REQUEST_SIZE == 64
+-	// efiboot can only provide 64 bytes of entropy, so fill the rest of the buffer with zero.
+-	// We compensate for this by sampling from RDRAND/RDSEED in bootseed_init_native.
++	#if BOOTLOADER_ENTROPY_REQUEST_SIZE < 4 * SEED_SIZE
++	// The bootloader (or, on SWEET, the shim's device tree) provided fewer
++	// bytes than the buffer holds, so zero the rest. x86 compensates with
++	// RDRAND/RDSEED in bootseed_init_native; SWEET has no native source yet.
+ 	cc_clear(sizeof(bootloader_rand) - BOOTLOADER_ENTROPY_REQUEST_SIZE, bootloader_rand + BOOTLOADER_ENTROPY_REQUEST_SIZE);
+ 	#endif
+ 

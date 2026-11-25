@@ -21,7 +21,7 @@ and the whole kernel compiles without pointer authentication.
 ## Layout
 
 ```
-patches/   0001..0020 applied in order; 0015-0019 trace early boot, 0020 disables unsupported Apple CPMU access
+patches/   0001..0027 applied in order; 0015-0019 trace early boot, 0020 disables unsupported Apple CPMU access, 0027 fixes the bootloader entropy request
 ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 .github/   tahoe-xnu.yml: pinned darwin-xnu-build (DXB) + macos-15-intel
 ```
@@ -53,10 +53,10 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0021 | `config/MASTER.arm64.MacOSX` | sets `CPU_COUNTERS_BASE` empty for SWEET, matching the known macos27 kernel configuration |
 | 0022 | `osfmk/arm64/cpu.c` | keeps SWEET `cpu_init()` framebuffer checkpoints 8 and 10 visible when `CONFIG_CPU_COUNTERS` is disabled |
 | 0023 | osfmk/arm64/arm_vm_init.c | reserves worst-case VA padding for PTOV block-alignment gaps in the non-PPL physmap, including ARM_LARGE_MEMORY |
+| 0024 | osfmk/arm64/arm_vm_init.c | paints SWEET row-2 marks immediately before and after `arm_vm_physmap_init()` to localize the 0023 device stop |
+| 0025 | osfmk/arm64/arm_vm_init.c, locore.s, debug.c, pe_init.c | adds arm_vm_init stage marks, binary boot-arg rows, and a panic/exception trace row; diagnostics only |
 | 0026 | osfmk/arm64/arm_vm_init.c | adds row-11 checkpoints through physical-memory sizing and physmap-slide setup; diagnostics only |
-| 0024 | osfmk/arm64/arm_vm_init.c | marks entry/return around rm_vm_physmap_init() |
-| 0025 | rm_vm_init.c, locore.s, debug.c, pe_init.c | adds arm_vm_init stage marks, binary boot-arg rows, and a panic/exception trace row; diagnostics only |
-| 0024 | osfmk/arm64/arm_vm_init.c | paints SWEET row-2 marks immediately before and after rm_vm_physmap_init() to localize the 0023 device stop |
+| 0027 | osfmk/prng/prng_random.c | SWEET asks the device tree for `SEED_SIZE` (64) bytes of bootloader entropy instead of `4*SEED_SIZE` and zero-fills the tail; removes the `early_random()` panic `Expected 256 seed bytes from bootloader, but got 64` |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
