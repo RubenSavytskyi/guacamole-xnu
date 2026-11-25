@@ -53,6 +53,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0021 | `config/MASTER.arm64.MacOSX` | sets `CPU_COUNTERS_BASE` empty for SWEET, matching the known macos27 kernel configuration |
 | 0022 | `osfmk/arm64/cpu.c` | keeps SWEET `cpu_init()` framebuffer checkpoints 8 and 10 visible when `CONFIG_CPU_COUNTERS` is disabled |
 | 0023 | osfmk/arm64/arm_vm_init.c | reserves worst-case VA padding for PTOV block-alignment gaps in the non-PPL physmap, including ARM_LARGE_MEMORY |
+| 0024 | osfmk/arm64/arm_vm_init.c | paints SWEET row-2 marks immediately before and after rm_vm_physmap_init() to localize the 0023 device stop |
 
 Run `44400572741` linked down to five missing symbols; patch 0013 adds the
 non-Apple runtime paths. Run `44406649506` produced a kernel artifact but failed
@@ -153,7 +154,7 @@ transcript.
 | Segments | 19 `LC_SEGMENT_64` commands; first is `__TEXT`, `fileoff=0` | Satisfies `build()`'s first-text-segment check |
 | 16 KB granule | Non-empty segments have 16 KB-aligned `vmaddr`, `vmsize` and `fileoff` | Compatible with the shim's 16 KB page constant; file byte count need not be page-aligned (`__LINKEDIT` is not) |
 | Chained fixups | No `LC_DYLD_CHAINED_FIXUPS` command | `apply_chained_fixups()` returns zero; no fixup rewrite is needed |
-| Payload | The CI artifact is a raw Mach-O kernel; the local firstboot image wraps it as `SWEETXNU` | `tahoe-firstboot-0020.img` and its D22 ADT exist; the image contains kernel diagnostics only and has no macOS root filesystem |
+| Payload | The CI artifact is a raw Mach-O kernel; the local firstboot image wraps it as `SWEETXNU` | `tahoe-firstboot-0020.img` was tested; `tahoe-firstboot-0023.img` is the current build, with kernel diagnostics only and no macOS root filesystem |
 
 The latest device result is for `tahoe-firstboot-0020.img`. The user reports
 that all 11 row-5 `cpu_init()` markers appeared, including slot 10, so CPU
@@ -173,8 +174,7 @@ The same-device macos27 bring-up records the matching `arm_vm_init()` failure:
 non-PPL `ARM_LARGE_MEMORY` path did not reserve corresponding virtual-address
 space. Patch 0023 adapts that padding fix to Tahoe 26.5 and reserves the margin
 in both the physmap bound and its L1 allocation. Patches 0021, 0022, and 0023
-apply cleanly in order to the saved run-21 buildtree source. Patch 0023 is not
-built or device-tested yet.
+apply cleanly in order to the saved run-21 buildtree source. CI run `45074157167` built all 23 patches successfully: criteria a–h pass, plain arm64, zero non-hint PAC, and no linker errors. Kernel SHA-256: `36f711fa0000f8b7e6e1fff526c36ee23d845a39a9ca16d17501188871df7912`. Wrapper `tahoe-firstboot-0023.img` SHA-256: `c5f5a3a7707108c4b996021db91af53dc107a4dc251a06d1feeee32f8aca681f`. The user tested image 0023 by temporary fastboot boot and reports the same visible marks as 0020: `arm_vm_init` entry only; the return marker and ESR/ELR remain absent. Patch 0023 therefore has no observed boot-progress effect. Patch 0024 adds only before/after `arm_vm_physmap_init()` framebuffer marks to isolate that stage.
 
 The first CI run with 0021–0022 built a kernel and passed arm64, PAC, compile,
 link, and patch-application checks; criterion (h) caught two renamed marker

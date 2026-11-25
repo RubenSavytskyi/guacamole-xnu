@@ -1,0 +1,20 @@
+Subject: [PATCH] SWEET: mark physmap initialization boundary
+
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 1edbe98..d813be5 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -2180,7 +2180,13 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	kasan_init();
+ #endif /* KASAN */
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(2, 2, 0xff0000ff); /* blue: entering arm_vm_physmap_init */
++#endif
+ 	arm_vm_physmap_init(args);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(3, 2, 0xffffff00); /* yellow: arm_vm_physmap_init returned */
++#endif
+ 	set_mmu_ttb_alternate(cpu_ttep & TTBR_BADDR_MASK);
+ 
+ #if XNU_MONITOR
