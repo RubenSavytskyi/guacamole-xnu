@@ -1,0 +1,344 @@
+Subject: [PATCH] SWEET: expand arm vm boot diagnostics
+
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index d813be5..0bf6780 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -53,6 +53,8 @@
+ 
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ extern void sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour);
++extern void sweet_fb_paint_boot_args(uint64_t mem_size, uint64_t phys_base, uint64_t top_of_kernel_data);
++#define SWEET_VM_MARK(slot, colour) sweet_fb_mark((slot), 2, (colour))
+ #endif
+ 
+ #if __ARM_KERNEL_PROTECT__
+@@ -1838,6 +1840,7 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ 	sweet_fb_mark(0, 2, 0xff00ff00);        /* green: arm_vm_init entered */
++	sweet_fb_paint_boot_args(args->memSize, args->physBase, args->topOfKernelData);
+ #endif
+ 	/*
+ 	 * Get the virtual and physical kernel-managed memory base from boot_args.
+@@ -1909,6 +1912,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	physmap_end = physmap_base + real_phys_size + ARM64_PHYSMAP_ALIGNMENT_PADDING;
+ #endif // ARM_LARGE_MEMORY
+ #endif
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(11, 0xffffffff); /* after memory/physmap sizing */
++#endif
+ 
+ #if KASAN && !defined(ARM_LARGE_MEMORY)
+ 	/* add the KASAN stolen memory to the physmap */
+@@ -1965,6 +1971,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 
+ 	/* Initialize invalid tte page */
+ 	invalid_tte = (tt_entry_t *)alloc_ptpage(TRUE);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(12, 0xffff8000); /* after invalid TTE page allocation */
++#endif
+ 	invalid_ttep = kvtophys((vm_offset_t)invalid_tte);
+ 	bzero(invalid_tte, ARM_PGBYTES);
+ 
+@@ -1972,6 +1981,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	 * Initialize l1 page table page
+ 	 */
+ 	cpu_tte = (tt_entry_t *)alloc_ptpage(TRUE);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(13, 0xff00ffff); /* after CPU TTE page allocation */
++#endif
+ 	cpu_ttep = kvtophys((vm_offset_t)cpu_tte);
+ 	bzero(cpu_tte, ARM_PGBYTES);
+ 	avail_end = gPhysBase + mem_size;
+@@ -1990,7 +2002,13 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	 *
+ 	 *   the so called physical aperture should be statically mapped
+ 	 */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(14, 0xff8000ff); /* before kernel-range init_ptpages */
++#endif
+ 	init_ptpages(cpu_tte, gVirtBase, dynamic_memory_begin, TRUE, ARM_TTE_TABLE_AP(ARM_TTE_TABLE_AP_USER_NA));
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(15, 0xffff00ff); /* after kernel-range init_ptpages */
++#endif
+ 
+ #if defined(ARM_LARGE_MEMORY)
+ 	/*
+@@ -1998,7 +2016,13 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	 *   on large memory systems the physical aperture exists separately below
+ 	 *   the rest of the kernel virtual address space
+ 	 */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(16, 0xff008080); /* before physmap-range init_ptpages */
++#endif
+ 	init_ptpages(cpu_tte, physmap_base, ROUND_L1(physmap_end), TRUE, ARM_DYNAMIC_TABLE_XN | ARM_TTE_TABLE_AP(ARM_TTE_TABLE_AP_USER_NA));
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	SWEET_VM_MARK(17, 0xffff0000); /* after physmap-range init_ptpages */
++#endif
+ #endif
+ 
+ 
+diff --git a/osfmk/arm64/locore.s b/osfmk/arm64/locore.s
+index baaea9d..cc38015 100644
+--- a/osfmk/arm64/locore.s
++++ b/osfmk/arm64/locore.s
+@@ -640,7 +640,50 @@ Lsweet_px\@:
+ 	b.ne	Lsweet_bit\@
+ .endm
+ 
++.macro SWEET_EXC_PAINT_TILE colour, xoff
++	mov	x14, x12
++	add	x14, x14, \xoff
++	mov	w15, \colour
++	mov	w16, #32
++Lsweet_tile_line\@:
++	mov	w17, #32
++Lsweet_tile_pixel\@:
++	str	w15, [x14], #4
++	subs	w17, w17, #1
++	b.ne	Lsweet_tile_pixel\@
++	mov	x17, #5632
++	add	x14, x14, x17
++	subs	w16, w16, #1
++	b.ne	Lsweet_tile_line\@
++.endm
++
++.macro SWEET_EXC_PAINT_TRACE64 vreg
++	mov	x13, #0
++Lsweet_trace_bit\@:
++	mov	x16, #40
++	madd	x14, x13, x16, x12
++	lsr	x15, \vreg, x13
++	and	x15, x15, #1
++	neg	x15, x15
++	mov	w16, #32
++Lsweet_trace_line\@:
++	mov	w17, #10
++Lsweet_trace_pixel\@:
++	str	w15, [x14], #4
++	subs	w17, w17, #1
++	b.ne	Lsweet_trace_pixel\@
++	mov	x17, #5720
++	add	x14, x14, x17
++	subs	w16, w16, #1
++	b.ne	Lsweet_trace_line\@
++	add	x13, x13, #1
++	cmp	x13, #64
++	b.ne	Lsweet_trace_bit\@
++.endm
++
+ Lsweet_exception_paint:
++	mov	x20, x30				/* interrupted caller LR */
++	mov	x21, xzr				/* raw vector has no panic string pointer */
+ 	mrs	x9, ESR_EL1
+ 	mrs	x10, ELR_EL1
+ 	movz	x11, #0x9c00, lsl #16		/* framebuffer base, VA == PA */
+@@ -650,6 +693,22 @@ Lsweet_exception_paint:
+ 	movz	x12, #0x168, lsl #16
+ 	lsr	x12, x12, #4			/* 256 * 5760 */
+ 	SWEET_EXC_PAINT_WORD x10, x12
++	/* Row 7 matches the C panic trace: marker, LR bits, and zero string pointer. */
++	movz	x12, #0x6000
++	movk	x12, #0x9c27, lsl #16		/* row 7 physical base = 0x9c276000 */
++	movz	w18, #0x0000
++	movk	w18, #0xffff, lsl #16		/* red */
++	SWEET_EXC_PAINT_TILE w18, #0
++	movz	w18, #0xff00
++	movk	w18, #0xffff, lsl #16		/* yellow */
++	SWEET_EXC_PAINT_TILE w18, #128
++	mov	w18, wzr				/* black separator */
++	SWEET_EXC_PAINT_TILE w18, #256
++	SWEET_EXC_PAINT_TILE w18, #384
++	add	x12, x12, #512			/* bit blocks begin at x=128 */
++	SWEET_EXC_PAINT_TRACE64 x20
++	add	x12, x12, #2560			/* second word begins at x=768 */
++	SWEET_EXC_PAINT_TRACE64 x21
+ Lsweet_exception_paint_halt:
+ 	b	Lsweet_exception_paint_halt
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+diff --git a/osfmk/kern/debug.c b/osfmk/kern/debug.c
+index 48f9405..356a9a5 100644
+--- a/osfmk/kern/debug.c
++++ b/osfmk/kern/debug.c
+@@ -78,6 +78,12 @@
+ #include <kern/zalloc_internal.h>
+ #include <kern/iotrace.h>
+ #include <pexpert/device_tree.h>
++#if defined(__arm64__)
++#include <pexpert/arm64/board_config.h>
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++extern void sweet_fb_panic_trace(uint64_t caller_lr, uint64_t string_pointer);
++#endif
++#endif
+ #include <vm/vm_kern_xnu.h>
+ #include <vm/vm_map.h>
+ #include <vm/pmap.h>
+@@ -766,6 +772,9 @@ DebuggerTrapWithState(debugger_op db_op, const char *db_message, const char *db_
+ void __attribute__((noinline))
+ Assert(const char*file, int line, const char *expression)
+ {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_panic_trace((uint64_t)(uintptr_t)__builtin_return_address(0), (uint64_t)(uintptr_t)expression);
++#endif
+ 	panic_plain("%s:%d Assertion failed: %s", file, line, expression);
+ }
+ 
+@@ -1253,6 +1262,10 @@ panic_trap_to_debugger(const char *panic_format_str, va_list *panic_args, unsign
+ {
+ #pragma clang diagnostic pop
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_panic_trace(panic_caller, (uint64_t)(uintptr_t)panic_format_str);
++#endif
++
+ #if defined(__x86_64__) && (DEVELOPMENT || DEBUG)
+ 	read_lbr();
+ #endif
+diff --git a/pexpert/arm/pe_init.c b/pexpert/arm/pe_init.c
+index dc1bf3f..1cbbc5d 100644
+--- a/pexpert/arm/pe_init.c
++++ b/pexpert/arm/pe_init.c
+@@ -38,43 +38,116 @@ extern void     pe_identify_machine(boot_args *bootArgs);
+  * Until arm_vm_init() has run, start.s leaves the buffer mapped identity
+  * (VA == PA) and write-through; after that it is mapped here instead.
+  * Row 1 (y = 64) marks the stages of arm_init(), row 2 (y = 128) the
+- * hand-off to the console.
++ * hand-off to the console. SWEET slots 0-11 use the first 32-pixel band;
++ * slots 12-23 continue in the second 32-pixel band of the same 64-pixel row.
+  */
+ #define SWEET_FB_PHYS   0x9c000000UL
+ #define SWEET_FB_STRIDE 5760
+ #define SWEET_MARK_PITCH 128
+ 
+ int sweet_fb_vm_ready;
++int sweet_fb_console_ready;
++static volatile uint32_t *sweet_fb_mapped;
++static int sweet_fb_panic_trace_written;
+ 
+-void
+-sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
++static volatile uint32_t *
++sweet_fb_buffer(void)
+ {
+-	static volatile uint32_t *mapped;
+-	volatile uint32_t *fb;
+-	vm_offset_t        base = SWEET_FB_PHYS;
+-	unsigned int       x, y;
+-
+ 	if (sweet_fb_vm_ready) {
+-		if (mapped == NULL) {
+-			mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
++		if (sweet_fb_mapped == NULL) {
++			sweet_fb_mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
+ 			    SWEET_FB_PHYS, 0x200000);
+ 		}
+-		if (mapped == NULL) {
+-			return;
++		return sweet_fb_mapped;
++	}
++	return (volatile uint32_t *)(uintptr_t)SWEET_FB_PHYS;
++}
++
++void
++sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
++{
++	volatile uint32_t *fb = sweet_fb_buffer();
++	unsigned int col = slot % 12;
++	unsigned int subrow = slot / 12;
++	if (fb == NULL || subrow > 1) {
++		return;
++	}
++	fb += (vm_offset_t)row * 64 * (SWEET_FB_STRIDE / 4) +
++	    (vm_offset_t)subrow * 32 * (SWEET_FB_STRIDE / 4) +
++	    (vm_offset_t)col * SWEET_MARK_PITCH;
++	for (unsigned int y = 0; y < 32; y++) {
++		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
++		for (unsigned int x = 0; x < 32; x++) {
++			line[x] = colour;
+ 		}
+-		base = (vm_offset_t)(uintptr_t)mapped;
+ 	}
++}
+ 
+-	fb = (volatile uint32_t *)(base +
+-	    (vm_offset_t)row * 64 * SWEET_FB_STRIDE +
+-	    (vm_offset_t)slot * SWEET_MARK_PITCH * 4);
+-	for (y = 0; y < 32; y++) {
++static void
++sweet_fb_paint_bits(unsigned int row, unsigned int start_x, unsigned int bit_width, uint64_t value)
++{
++	volatile uint32_t *fb = sweet_fb_buffer();
++	if (fb == NULL) {
++		return;
++	}
++	fb += (vm_offset_t)row * 64 * (SWEET_FB_STRIDE / 4);
++	for (unsigned int bit = 0; bit < 64; bit++) {
++		uint32_t colour = ((value >> bit) & 1ULL) ? 0xffffffffU : 0x00000000U;
++		unsigned int x0 = start_x + bit * bit_width;
++		for (unsigned int y = 0; y < 32; y++) {
++			volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4) + x0;
++			for (unsigned int x = 0; x < bit_width; x++) {
++				line[x] = colour;
++			}
++		}
++	}
++}
++
++void
++sweet_fb_paint_boot_args(uint64_t mem_size, uint64_t phys_base, uint64_t top_of_kernel_data)
++{
++	/* 64 blocks, bit 0 at left, white=1/black=0; rows 8, 9, 10 respectively. */
++	sweet_fb_paint_bits(8, 80, 20, mem_size);
++	sweet_fb_paint_bits(9, 80, 20, phys_base);
++	sweet_fb_paint_bits(10, 80, 20, top_of_kernel_data);
++}
++
++static void
++sweet_fb_paint_tile(volatile uint32_t *fb, unsigned int row, unsigned int x0, uint32_t colour)
++{
++	fb += (vm_offset_t)row * 64 * (SWEET_FB_STRIDE / 4) + x0;
++	for (unsigned int y = 0; y < 32; y++) {
+ 		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
+-		for (x = 0; x < 32; x++) {
++		for (unsigned int x = 0; x < 32; x++) {
+ 			line[x] = colour;
+ 		}
+ 	}
+ }
++
++void
++sweet_fb_panic_trace(uint64_t caller_lr, uint64_t string_pointer)
++{
++	if (sweet_fb_console_ready || sweet_fb_panic_trace_written) {
++		return;
++	}
++	volatile uint32_t *fb = sweet_fb_buffer();
++	if (fb == NULL) {
++		return;
++	}
++	sweet_fb_panic_trace_written = 1;
++	/* Row 7: red/yellow panic marker; LR bits 0..63 then string pointer bits 0..63. */
++	sweet_fb_paint_tile(fb, 7, 0, 0xffff0000U);
++	sweet_fb_paint_tile(fb, 7, 32, 0xffffff00U);
++	for (unsigned int y = 0; y < 32; y++) {
++		volatile uint32_t *line = fb + (vm_offset_t)7 * 64 * (SWEET_FB_STRIDE / 4) +
++		    y * (SWEET_FB_STRIDE / 4) + 64;
++		for (unsigned int x = 0; x < 64; x++) {
++			line[x] = 0x00000000U;
++		}
++	}
++	sweet_fb_paint_bits(7, 128, 10, caller_lr);
++	sweet_fb_paint_bits(7, 768, 10, string_pointer);
++}
+ #endif /* ARM64_BOARD_CONFIG_SWEET */
+ 
+ /* static references */
+@@ -619,6 +692,7 @@ PE_create_console(void)
+ 		sweet_fb_mark(5, 2, 0xff00ffff);    /* cyan: framebuffer mapped */
+ 		initialize_screen(NULL, kPETextScreen);
+ 		sweet_fb_mark(6, 2, 0xff00ff00);    /* green: text console requested */
++		sweet_fb_console_ready = 1;
+ #else
+ 		PE_initialize_console(&PE_state.video, kPEGraphicsMode);
+ #endif
