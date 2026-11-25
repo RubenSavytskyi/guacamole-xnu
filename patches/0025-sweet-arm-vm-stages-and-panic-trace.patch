@@ -196,10 +196,10 @@ index 48f9405..356a9a5 100644
  	read_lbr();
  #endif
 diff --git a/pexpert/arm/pe_init.c b/pexpert/arm/pe_init.c
-index dc1bf3f..1cbbc5d 100644
+index dc1bf3f..30cc680 100644
 --- a/pexpert/arm/pe_init.c
 +++ b/pexpert/arm/pe_init.c
-@@ -38,43 +38,116 @@ extern void     pe_identify_machine(boot_args *bootArgs);
+@@ -38,13 +38,30 @@ extern void     pe_identify_machine(boot_args *bootArgs);
   * Until arm_vm_init() has run, start.s leaves the buffer mapped identity
   * (VA == PA) and write-through; after that it is mapped here instead.
   * Row 1 (y = 64) marks the stages of arm_init(), row 2 (y = 128) the
@@ -215,56 +215,60 @@ index dc1bf3f..1cbbc5d 100644
 +int sweet_fb_console_ready;
 +static volatile uint32_t *sweet_fb_mapped;
 +static int sweet_fb_panic_trace_written;
- 
--void
--sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
++
 +static volatile uint32_t *
 +sweet_fb_buffer(void)
- {
--	static volatile uint32_t *mapped;
--	volatile uint32_t *fb;
--	vm_offset_t        base = SWEET_FB_PHYS;
--	unsigned int       x, y;
--
- 	if (sweet_fb_vm_ready) {
--		if (mapped == NULL) {
--			mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
++{
++	if (sweet_fb_vm_ready) {
 +		if (sweet_fb_mapped == NULL) {
 +			sweet_fb_mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
- 			    SWEET_FB_PHYS, 0x200000);
- 		}
--		if (mapped == NULL) {
--			return;
++			    SWEET_FB_PHYS, 0x200000);
++		}
 +		return sweet_fb_mapped;
 +	}
 +	return (volatile uint32_t *)(uintptr_t)SWEET_FB_PHYS;
 +}
-+
-+void
-+sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
-+{
-+	volatile uint32_t *fb = sweet_fb_buffer();
-+	unsigned int col = slot % 12;
-+	unsigned int subrow = slot / 12;
-+	if (fb == NULL || subrow > 1) {
-+		return;
-+	}
-+	fb += (vm_offset_t)row * 64 * (SWEET_FB_STRIDE / 4) +
-+	    (vm_offset_t)subrow * 32 * (SWEET_FB_STRIDE / 4) +
-+	    (vm_offset_t)col * SWEET_MARK_PITCH;
-+	for (unsigned int y = 0; y < 32; y++) {
-+		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
-+		for (unsigned int x = 0; x < 32; x++) {
-+			line[x] = colour;
+ 
+ void
+ sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
+@@ -58,6 +75,7 @@ sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
+ 		if (mapped == NULL) {
+ 			mapped = (volatile uint32_t *)(uintptr_t)ml_io_map_wcomb(
+ 			    SWEET_FB_PHYS, 0x200000);
++			sweet_fb_mapped = mapped;
  		}
--		base = (vm_offset_t)(uintptr_t)mapped;
+ 		if (mapped == NULL) {
+ 			return;
+@@ -65,9 +83,21 @@ sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
+ 		base = (vm_offset_t)(uintptr_t)mapped;
  	}
-+}
  
 -	fb = (volatile uint32_t *)(base +
 -	    (vm_offset_t)row * 64 * SWEET_FB_STRIDE +
 -	    (vm_offset_t)slot * SWEET_MARK_PITCH * 4);
--	for (y = 0; y < 32; y++) {
++	if (slot <= 11) {
++		fb = (volatile uint32_t *)(base +
++		    (vm_offset_t)row * 64 * SWEET_FB_STRIDE +
++		    (vm_offset_t)slot * SWEET_MARK_PITCH * 4);
++	} else {
++		unsigned int col = slot % 12;
++		unsigned int subrow = slot / 12;
++		if (subrow > 1) {
++			return;
++		}
++		fb = (volatile uint32_t *)(base +
++		    (vm_offset_t)row * 64 * SWEET_FB_STRIDE +
++		    (vm_offset_t)subrow * 32 * SWEET_FB_STRIDE +
++		    (vm_offset_t)col * SWEET_MARK_PITCH * 4);
++	}
+ 	for (y = 0; y < 32; y++) {
+ 		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
+ 		for (x = 0; x < 32; x++) {
+@@ -75,6 +105,72 @@ sweet_fb_mark(unsigned int slot, unsigned int row, uint32_t colour)
+ 		}
+ 	}
+ }
++
 +static void
 +sweet_fb_paint_bits(unsigned int row, unsigned int start_x, unsigned int bit_width, uint64_t value)
 +{
@@ -299,13 +303,12 @@ index dc1bf3f..1cbbc5d 100644
 +{
 +	fb += (vm_offset_t)row * 64 * (SWEET_FB_STRIDE / 4) + x0;
 +	for (unsigned int y = 0; y < 32; y++) {
- 		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
--		for (x = 0; x < 32; x++) {
++		volatile uint32_t *line = fb + y * (SWEET_FB_STRIDE / 4);
 +		for (unsigned int x = 0; x < 32; x++) {
- 			line[x] = colour;
- 		}
- 	}
- }
++			line[x] = colour;
++		}
++	}
++}
 +
 +void
 +sweet_fb_panic_trace(uint64_t caller_lr, uint64_t string_pointer)
@@ -334,7 +337,7 @@ index dc1bf3f..1cbbc5d 100644
  #endif /* ARM64_BOARD_CONFIG_SWEET */
  
  /* static references */
-@@ -619,6 +692,7 @@ PE_create_console(void)
+@@ -619,6 +715,7 @@ PE_create_console(void)
  		sweet_fb_mark(5, 2, 0xff00ffff);    /* cyan: framebuffer mapped */
  		initialize_screen(NULL, kPETextScreen);
  		sweet_fb_mark(6, 2, 0xff00ff00);    /* green: text console requested */

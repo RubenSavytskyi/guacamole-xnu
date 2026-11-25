@@ -181,3 +181,4 @@ apply cleanly in order to the saved run-21 buildtree source. CI run `45074157167
 The first CI run with 0021–0022 built a kernel and passed arm64, PAC, compile,
 link, and patch-application checks; criterion (h) caught two renamed marker
 comments from 0019. The current 0022 preserves those source lines verbatim.
+0025 acceptance follow-up: run `45645570586` built a plain-arm64 kernel with zero non-hint PAC and no compiler/linker errors, but collector criterion (h) failed because the first 0025 revision refactored lines added by patch 0018. The corrected 0025 keeps the original `sweet_fb_mark()` source lines verbatim for slots 0–11 and adds only an extended branch for slots 12–23. The corrected patch is awaiting CI; the failed artifact is not used as a device image.
