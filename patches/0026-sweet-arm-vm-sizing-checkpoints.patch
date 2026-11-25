@@ -1,0 +1,58 @@
+Subject: [PATCH] SWEET: split arm vm sizing diagnostics
+
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index 0bf6780..c3519f0 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1851,6 +1851,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	real_phys_size = args->memSize + (shadow_ptop - shadow_pbase);
+ #else
+ 	real_phys_size = args->memSize;
++#endif
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(0, 11, 0xffffffff); /* derived real physical size */
+ #endif
+ 	/*
+ 	 * Ensure the physical region we specify for the VM to manage ends on a
+@@ -1870,6 +1873,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	} else {
+ 		max_mem_actual = mem_actual;
+ 	}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(1, 11, 0xff00ffff); /* normalized size and actual memory */
++#endif
+ #if !defined(ARM_LARGE_MEMORY)
+ 	if (mem_size >= ((VM_MAX_KERNEL_ADDRESS - VM_MIN_KERNEL_ADDRESS) / 2)) {
+ 		panic("Unsupported memory configuration %lx", mem_size);
+@@ -1882,12 +1888,21 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ #else
+ 	physmap_base = phystokv(args->topOfKernelData);
+ #endif
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(2, 11, 0xffffff00); /* initial physmap base */
++#endif
+ 
+ 	// Slide the physical aperture to a random page-aligned location within the slide range
+ 	uint64_t physmap_slide = early_random() & ARM64_PHYSMAP_SLIDE_MASK & ~((uint64_t)PAGE_MASK);
+ 	assert(physmap_slide < ARM64_PHYSMAP_SLIDE_RANGE);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(3, 11, 0xffff00ff); /* early_random and slide assertion returned */
++#endif
+ 
+ 	physmap_base += physmap_slide;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(4, 11, 0xff0080ff); /* random slide added */
++#endif
+ 
+ #if XNU_MONITOR
+ 	physmap_base = ROUND_TWIG(physmap_base);
+@@ -1912,6 +1927,9 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	physmap_end = physmap_base + real_phys_size + ARM64_PHYSMAP_ALIGNMENT_PADDING;
+ #endif // ARM_LARGE_MEMORY
+ #endif
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(5, 11, 0xff80ff00); /* rounded base and memory extents */
++#endif
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ 	SWEET_VM_MARK(11, 0xffffffff); /* after memory/physmap sizing */
+ #endif

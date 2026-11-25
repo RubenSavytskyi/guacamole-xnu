@@ -53,6 +53,7 @@ ci/        pac_count.py, dsc_hist.py, their tests and rule tables
 | 0021 | `config/MASTER.arm64.MacOSX` | sets `CPU_COUNTERS_BASE` empty for SWEET, matching the known macos27 kernel configuration |
 | 0022 | `osfmk/arm64/cpu.c` | keeps SWEET `cpu_init()` framebuffer checkpoints 8 and 10 visible when `CONFIG_CPU_COUNTERS` is disabled |
 | 0023 | osfmk/arm64/arm_vm_init.c | reserves worst-case VA padding for PTOV block-alignment gaps in the non-PPL physmap, including ARM_LARGE_MEMORY |
+| 0026 | osfmk/arm64/arm_vm_init.c | adds row-11 checkpoints through physical-memory sizing and physmap-slide setup; diagnostics only |
 | 0024 | osfmk/arm64/arm_vm_init.c | marks entry/return around rm_vm_physmap_init() |
 | 0025 | rm_vm_init.c, locore.s, debug.c, pe_init.c | adds arm_vm_init stage marks, binary boot-arg rows, and a panic/exception trace row; diagnostics only |
 | 0024 | osfmk/arm64/arm_vm_init.c | paints SWEET row-2 marks immediately before and after rm_vm_physmap_init() to localize the 0023 device stop |
