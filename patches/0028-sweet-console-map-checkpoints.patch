@@ -1,0 +1,103 @@
+Subject: [PATCH] SWEET: trace PE_create_console and framebuffer mapping
+
+diff --git a/osfmk/console/video_console.c b/osfmk/console/video_console.c
+index 2d9c067..7e51185 100644
+--- a/osfmk/console/video_console.c
++++ b/osfmk/console/video_console.c
+@@ -2818,6 +2818,10 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 	boolean_t graphics_now;
+ 	uint32_t delay;
+ 
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(0, 6, 0xff00ff00);        /* green: initialize_screen entered */
++#endif
++
+ 	if (boot_vinfo) {
+ 		struct vc_info new_vinfo = vinfo;
+ 		boolean_t makeMapping = FALSE;
+@@ -2858,6 +2862,9 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 		 */
+ 		newVideoVirt = boot_vinfo->v_baseAddr;
+ 		makeMapping = (kernel_map == VM_MAP_NULL) || (0 != (1 & newVideoVirt));
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(1, 6, makeMapping ? 0xff0000ff : 0xffffff00); /* blue: map, yellow: already mapped */
++#endif
+ 		if (makeMapping) {
+ 			newVideoVirt = 0;
+ 			new_vinfo.v_physaddr = boot_vinfo->v_baseAddr & ~3UL;           /* Get the physical address */
+@@ -2894,9 +2901,13 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 				} else {
+ 					newMapSize = (unsigned int) round_page(new_vinfo.v_height * new_vinfo.v_rowbytes);                      /* Remember size */
+ 				}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++				sweet_fb_mark(2, 6, 0xffffffff);        /* white: before ml_io_map_unmappable */
++#endif
+ 				newVideoVirt = ml_io_map_unmappable((vm_map_offset_t)new_vinfo.v_physaddr, newMapSize, flags);   /* Allocate address space for framebuffer */
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ 				sweet_fb_mark(7, 2, newVideoVirt ? 0xff00ff00 : 0xffff0000);
++				sweet_fb_mark(3, 6, newVideoVirt ? 0xff00ff00 : 0xffff0000); /* green: mapped, red: failed */
+ #endif
+ 			}
+ 			new_vinfo.v_baseaddr = newVideoVirt + boot_vinfo->v_offset;                     /* Set the new framebuffer address */
+@@ -2946,7 +2957,13 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 			gc_ops.hide_cursor  = vc_reverse_cursor;
+ 			gc_ops.show_cursor  = vc_reverse_cursor;
+ 			gc_ops.update_color = vc_update_color;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			sweet_fb_mark(4, 6, 0xffff00ff);        /* magenta: before gc_initialize */
++#endif
+ 			gc_initialize(&vinfo);
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++			sweet_fb_mark(5, 6, 0xff00ffff);        /* cyan: after gc_initialize */
++#endif
+ 		}
+ 	}
+ 
+@@ -3079,6 +3096,9 @@ initialize_screen(PE_Video * boot_vinfo, unsigned int op)
+ 	}
+ #endif
+ 	}
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(6, 6, 0xffffff00);            /* yellow: initialize_screen returned */
++#endif
+ }
+ 
+ void vcattach(void); /* XXX gcc 4 warning cleanup */
+diff --git a/pexpert/arm/pe_init.c b/pexpert/arm/pe_init.c
+index 30cc680..3d16c68 100644
+--- a/pexpert/arm/pe_init.c
++++ b/pexpert/arm/pe_init.c
+@@ -698,8 +698,14 @@ PE_create_console(void)
+ 	 * Do this before the VRAM is trashed.
+ 	 */
+ 	check_for_panic_log();
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++	sweet_fb_mark(7, 6, 0xff0000ff);        /* blue: check_for_panic_log returned */
++#endif
+ 
+ 	if (PE_state.video.v_display) {
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(8, 6, 0xff00ff00);    /* green: video display present */
++#endif
+ #if defined(ARM64_BOARD_CONFIG_SWEET)
+ 		/*
+ 		 * sweet: the shim can only pass a physical framebuffer address,
+@@ -713,9 +719,18 @@ PE_create_console(void)
+ 		fb.v_baseAddr |= 1;
+ 		PE_initialize_console(&fb, kPEGraphicsMode);
+ 		sweet_fb_mark(5, 2, 0xff00ffff);    /* cyan: framebuffer mapped */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(9, 6, 0xffffffff);    /* white: PE_initialize_console returned */
++#endif
+ 		initialize_screen(NULL, kPETextScreen);
+ 		sweet_fb_mark(6, 2, 0xff00ff00);    /* green: text console requested */
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(10, 6, 0xffff00ff);   /* magenta: kPETextScreen returned */
++#endif
+ 		sweet_fb_console_ready = 1;
++#if defined(ARM64_BOARD_CONFIG_SWEET)
++		sweet_fb_mark(11, 6, 0xff00ffff);   /* cyan: console ready */
++#endif
+ #else
+ 		PE_initialize_console(&PE_state.video, kPEGraphicsMode);
+ #endif
